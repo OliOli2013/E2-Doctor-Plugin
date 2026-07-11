@@ -1,0 +1,27 @@
+E2 Doctor 2.1
+
+- odświeżony panel premium z pełnym, poprawnie skalowanym logo,
+- nowy nagłówek SMART DIAGNOSTICS / SAFE REPAIR / LIVE CARE,
+- pasek priorytetowej rekomendacji po każdym skanie,
+- nowe oznaczenia modułów: SYS, LOG, NET, DVB, HDD, PKG, CAM i inne,
+- dodano Centrum szybkiej naprawy dostępne bezpośrednio z panelu głównego,
+- wejście w wykryty problem pokazuje teraz odczyt, rozwiązanie i dostępne działania,
+- możliwość wyboru kilku działań dopasowanych do konkretnego problemu,
+- bezpieczne czyszczenie pamięci flash: wyłącznie stare crashlogi, archiwa OPKG i zrzuty pamięci,
+- bezpieczne odświeżenie pamięci RAM bez kończenia procesów i bez zmiany ustawień,
+- podgląd największych plików i procesów zużywających RAM,
+- rozszerzone działania dla list kanałów, OPKG, OSCam, sieci, crashlogów i nośników,
+- szybkie przeładowanie list kanałów bez usuwania bukietów i ustawień tunera,
+- diagnostyka nośników bez formatowania i bez naprawy aktywnego systemu plików,
+- w ekranie rozwiązania: zielony wykonuje główne działanie, niebieski otwiera listę wszystkich działań,
+- każda operacja zmieniająca system wymaga potwierdzenia użytkownika,
+- zachowano kopie i cofanie obsługiwanych zmian,
+- stopka zawiera autora oraz adres: aio-iptv@wp.pl,
+- ujednolicony wygląd ekranów wyników, historii, ustawień, IPK i narzędzi,
+- zgodność wyłącznie z Enigma2 Python 3.
+- dodano widoczny moduł „Aktualizacja z GitHub” w panelu głównym,
+- dodano skrót klawiszem 0 do ekranu aktualizacji,
+- aktualizator sprawdza plik update.json w repozytorium OliOli2013/E2-Doctor-Plugin,
+- przed instalacją paczka IPK jest weryfikowana sumą SHA-256,
+- pobranie i instalacja wymagają potwierdzenia użytkownika,
+- po poprawnej instalacji wtyczka proponuje restart GUI Enigma2.

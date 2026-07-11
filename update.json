@@ -1,0 +1,16 @@
+{
+  "name": "E2 Doctor",
+  "version": "2.2",
+  "build": "20260711-3",
+  "release_date": "2026-07-11",
+  "min_python": 3,
+  "download_url": "https://raw.githubusercontent.com/OliOli2013/E2-Doctor-Plugin/main/releases/enigma2-plugin-extensions-e2doctor_2.2_all.ipk",
+  "sha256": "c7b93ba2cb2c4a864c398760384779abf6bda81e29a917ffd0f338d395a25b27",
+  "notes": [
+    "Nowy panel główny w stylu premium z kafelkami modułów i ikonami.",
+    "Skrócono statusy i usunięto problem z obcinaniem napisu po prawej stronie.",
+    "Każdy moduł ma teraz ikonę, opis oraz czytelny badge stanu.",
+    "Zachowano naprawę z poziomu problemu, centrum szybkiej naprawy oraz aktualizację z GitHub.",
+    "Interfejs został przygotowany tak, aby wyglądał nowocześnie również na tunerach Enigma2."
+  ]
+}

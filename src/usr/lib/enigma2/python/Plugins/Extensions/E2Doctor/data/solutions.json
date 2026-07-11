@@ -1,0 +1,478 @@
+{
+  "bouquet_core_missing": {
+    "cause": "Nie znaleziono indeksu bouquets.tv, bouquets.radio lub prawidłowego pliku lamedb.",
+    "consequences": "Lista kanałów może być pusta, niepełna albo niemożliwa do przeładowania.",
+    "restart": "Po przywróceniu plików wykonaj restart GUI.",
+    "steps": [
+      "Nie uruchamiaj automatycznej naprawy bez posiadania kopii /etc/enigma2.",
+      "Przywróć ostatnią poprawną kopię listy kanałów.",
+      "Sprawdź, czy pliki zostały rozpakowane bezpośrednio do /etc/enigma2.",
+      "Po przywróceniu przeładuj listę kanałów lub uruchom ponownie GUI."
+    ],
+    "title": "Brakuje głównych plików listy kanałów"
+  },
+  "bouquet_missing_refs": {
+    "action": "repair_bouquet_refs",
+    "action_label": "Napraw odwołania",
+    "cause": "Plik bouquets.tv lub bouquets.radio wskazuje pliki userbouquet, których nie ma w /etc/enigma2.",
+    "consequences": "W menu list kanałów mogą pojawiać się puste pozycje, komunikaty o błędach lub niepełna lista.",
+    "restart": "Restart GUI nie jest wymagany, jeśli przeładowanie listy zakończy się poprawnie.",
+    "steps": [
+      "Wykonaj kopię plików indeksu bukietów.",
+      "Usuń tylko linie odwołujące się do nieistniejących plików.",
+      "Nie usuwaj istniejących plików userbouquet.",
+      "Po naprawie przeładuj listę kanałów."
+    ],
+    "title": "Indeks zawiera odwołania do nieistniejących bukietów"
+  },
+  "crash_generic": {
+    "cause": "Log zawiera ślad awarii, ale E2 Doctor nie rozpoznał jednoznacznej kategorii problemu.",
+    "consequences": "Problem może wystąpić ponownie przy wykonaniu tej samej czynności.",
+    "steps": [
+      "Sprawdź wskazany plik i miejsce błędu: {file}, linia {line}, funkcja {function}.",
+      "Zanotuj dokładne czynności poprzedzające awarię.",
+      "Sprawdź ostatnie linie tracebacku i nazwę wtyczki.",
+      "Zaktualizuj podejrzaną wtyczkę oraz obraz.",
+      "Przekaż pełny crashlog twórcy wraz z modelem dekodera i wersją systemu."
+    ],
+    "title": "Wykryto crashlog Enigma2"
+  },
+  "crash_import": {
+    "cause": "Wtyczka odwołuje się do brakującej lub niezgodnej funkcji, klasy albo biblioteki.",
+    "consequences": "Najczęściej oznacza niezgodność wtyczki z wersją obrazu lub Pythona.",
+    "restart": "Po zmianie wtyczki wykonaj restart GUI.",
+    "steps": [
+      "Sprawdź wskazany plik i miejsce błędu: {file}, linia {line}, funkcja {function}.",
+      "Sprawdź nazwę wtyczki w śladzie błędu: {plugin}.",
+      "Zaktualizuj wtyczkę do wersji zgodnej z używanym obrazem.",
+      "Jeżeli błąd pojawił się po aktualizacji obrazu, usuń starą wersję wtyczki i zainstaluj aktualną.",
+      "Nie kopiuj pojedynczych bibliotek z innego systemu."
+    ],
+    "title": "Błąd importu wtyczki"
+  },
+  "crash_network": {
+    "action": "network_test",
+    "action_label": "Wykonaj test sieci",
+    "cause": "Dekoder nie ma aktywnej trasy do internetu albo interfejs sieciowy nie działa.",
+    "consequences": "Wtyczka nie pobierze danych, list, aktualizacji ani EPG.",
+    "steps": [
+      "Sprawdź adres IP, bramę i DNS.",
+      "Sprawdź połączenie przewodowe lub Wi-Fi.",
+      "Wykonaj test sieci z E2 Doctor.",
+      "Uruchom ponownie router tylko wtedy, gdy problem dotyczy również innych urządzeń."
+    ],
+    "title": "Sieć jest niedostępna"
+  },
+  "crash_no_space": {
+    "action": "safe_flash_cleanup",
+    "action_label": "Bezpiecznie oczyść flash",
+    "cause": "Proces nie mógł zapisać pliku, ponieważ partycja jest pełna albo zabrakło wolnych i-węzłów.",
+    "consequences": "Ustawienia, aktualizacje, logi i dane wtyczek mogą nie zostać zapisane.",
+    "restart": "Po zwolnieniu miejsca wykonaj restart GUI.",
+    "steps": [
+      "Nie wykonuj kolejnych instalacji ani aktualizacji.",
+      "Sprawdź wolne miejsce i i-węzły poleceniami df -h oraz df -i.",
+      "Znajdź największe pliki w pamięci systemowej.",
+      "Usuń stare logi i odinstaluj nieużywane paczki."
+    ],
+    "title": "Brak miejsca na urządzeniu"
+  },
+  "crash_permission": {
+    "cause": "Proces próbował odczytać, zapisać albo uruchomić plik bez wymaganych uprawnień.",
+    "consequences": "Funkcja wtyczki nie może zakończyć operacji.",
+    "steps": [
+      "Sprawdź ścieżkę wskazaną w crashlogu.",
+      "Porównaj właściciela i uprawnienia z innymi plikami tego samego typu.",
+      "Nie ustawiaj chmod 777 na całych katalogach systemowych.",
+      "Dla skryptu lub pliku wykonywalnego zwykle wymagane jest prawo wykonania."
+    ],
+    "title": "Brak uprawnień do pliku lub katalogu"
+  },
+  "crash_python_error": {
+    "cause": "Crashlog zawiera błąd „{error}”. Najczęściej powoduje go niezgodna wersja wtyczki, błędne dane albo błąd w jej kodzie.",
+    "consequences": "Ekran lub funkcja wywołująca błąd może ponownie zamknąć Enigma2.",
+    "restart": "Po aktualizacji lub usunięciu wadliwej wtyczki wykonaj restart GUI.",
+    "steps": [
+      "Sprawdź wskazany plik i miejsce błędu: {file}, linia {line}, funkcja {function}.",
+      "Sprawdź wtyczkę wskazaną w śladzie błędu: {plugin}.",
+      "Zaktualizuj ją do wersji zgodnej z używanym obrazem i Pythonem.",
+      "Jeśli problem pojawił się po zmianie konfiguracji, przywróć ostatnią poprawną kopię ustawień tej wtyczki.",
+      "Przekaż twórcy wtyczki pełny crashlog wraz z opisem czynności prowadzących do błędu."
+    ],
+    "title": "Błąd kodu Python we wtyczce"
+  },
+  "crash_python_module": {
+    "cause": "Kod próbuje zaimportować moduł „{module}”, którego nie ma w systemie.",
+    "consequences": "Wtyczka wskazana w crashlogu nie uruchomi się do czasu instalacji zgodnej zależności.",
+    "restart": "Po instalacji zależności wykonaj restart GUI.",
+    "steps": [
+      "Sprawdź wskazany plik i miejsce błędu: {file}, linia {line}, funkcja {function}.",
+      "Sprawdź, która wtyczka została wymieniona w śladzie błędu: {plugin}.",
+      "Wyszukaj na feedzie pakiet odpowiadający modułowi „{module}”.",
+      "Nie instaluj bibliotek pip do systemowego Pythona, jeśli obraz udostępnia pakiet OPKG.",
+      "Zainstaluj zależność tylko wtedy, gdy jest przeznaczona dla wersji Pythona używanej przez obraz."
+    ],
+    "title": "Wtyczce brakuje modułu Python"
+  },
+  "crash_readonly": {
+    "cause": "Jądro mogło przełączyć partycję w tryb tylko do odczytu po wykryciu błędów.",
+    "consequences": "System nie może zapisywać ustawień ani instalować paczek.",
+    "restart": "Po naprawie systemu plików wykonaj pełny restart dekodera.",
+    "steps": [
+      "Nie próbuj wymuszać zapisu przed sprawdzeniem logu jądra.",
+      "Sprawdź polecenie: mount oraz dmesg | tail -n 100.",
+      "Wykonaj kontrolę systemu plików z innego systemu lub trybu serwisowego.",
+      "Jeżeli problem dotyczy pamięci wewnętrznej i wraca, wykonaj kopię danych i ponownie wgraj obraz."
+    ],
+    "title": "System plików jest tylko do odczytu"
+  },
+  "crash_segfault": {
+    "cause": "Proces zakończył się poza kontrolą Pythona. Przyczyną może być biblioteka natywna, sterownik, uszkodzony plik lub brak pamięci.",
+    "consequences": "Enigma2 może zostać natychmiast uruchomiona ponownie bez czytelnego błędu Python.",
+    "restart": "Po aktualizacji wykonaj pełny restart dekodera.",
+    "steps": [
+      "Sprawdź, jaka czynność bezpośrednio poprzedziła awarię.",
+      "Zaktualizuj obraz i wtyczkę korzystającą z bibliotek natywnych.",
+      "Sprawdź wolną pamięć RAM i temperaturę.",
+      "Jeżeli błąd jest powtarzalny, przekaż pełny crashlog twórcy obrazu lub wtyczki."
+    ],
+    "title": "Błąd segmentacji składnika systemowego"
+  },
+  "crash_skin": {
+    "cause": "Skin odwołuje się do brakującego komponentu, grafiki, czcionki albo niezgodnego widgetu.",
+    "consequences": "Enigma2 może uruchamiać ekran awarii przy wejściu do określonego menu.",
+    "restart": "Po zmianie skina wykonaj restart GUI.",
+    "steps": [
+      "Ustaw domyślny skin obrazu.",
+      "Uruchom ponownie GUI.",
+      "Zaktualizuj lub usuń skin wskazany w crashlogu.",
+      "Jeśli błąd dotyczy tylko jednej wtyczki, sprawdź jej własny plik skin.xml."
+    ],
+    "title": "Błąd skina Enigma2"
+  },
+  "crash_ssl": {
+    "action": "network_test",
+    "action_label": "Wykonaj test sieci",
+    "cause": "Data systemowa, magazyn certyfikatów albo biblioteki SSL są nieprawidłowe.",
+    "consequences": "Pobieranie danych przez HTTPS może zostać zablokowane.",
+    "steps": [
+      "Sprawdź datę i czas systemowy.",
+      "Zaktualizuj pakiet certyfikatów CA z feedu obrazu.",
+      "Nie wyłączaj weryfikacji SSL jako stałego rozwiązania.",
+      "Sprawdź, czy problem występuje dla wielu serwerów czy tylko jednego."
+    ],
+    "title": "Błąd weryfikacji certyfikatu HTTPS"
+  },
+  "diagnostic_error": {
+    "cause": "E2 Doctor nie mógł wykonać jednego z testów na tym obrazie lub modelu dekodera.",
+    "consequences": "Wynik danego testu jest niepełny, ale pozostałe moduły mogą działać poprawnie.",
+    "steps": [
+      "Zapisz raport E2 Doctor.",
+      "Sprawdź szczegóły techniczne błędu.",
+      "Przekaż raport wraz z modelem dekodera i wersją obrazu twórcy wtyczki.",
+      "Nie wykonuj ręcznych zmian systemowych wyłącznie na podstawie tego komunikatu."
+    ],
+    "title": "Moduł diagnostyczny zakończył się błędem"
+  },
+  "dns_error": {
+    "action": "network_test",
+    "action_label": "Wykonaj test sieci",
+    "cause": "Dekoder nie może zamienić nazwy domeny na adres IP.",
+    "consequences": "GitHub, feedy OPKG i inne usługi internetowe mogą być niedostępne mimo aktywnego połączenia sieciowego.",
+    "steps": [
+      "Sprawdź, czy dekoder otrzymał adres IP, bramę i serwery DNS.",
+      "Sprawdź kabel sieciowy lub połączenie Wi-Fi.",
+      "Uruchom test bramy, DNS i połączenia HTTPS.",
+      "W razie potrzeby ustaw DNS routera lub publiczny DNS w konfiguracji sieci."
+    ],
+    "title": "Nie działa rozwiązywanie nazw DNS"
+  },
+  "epg_small": {
+    "cause": "EPG nie zostało jeszcze pobrane, import został przerwany albo wskazano błędną lokalizację pliku.",
+    "consequences": "Opisy programów mogą nie być wyświetlane.",
+    "steps": [
+      "Uruchom ręczny import EPG w używanej wtyczce.",
+      "Sprawdź źródła i adresy pobierania EPG.",
+      "Sprawdź, czy katalog docelowy istnieje i jest zapisywalny.",
+      "Po imporcie odczekaj chwilę i ponownie uruchom diagnostykę."
+    ],
+    "title": "Plik EPG jest pusty lub nietypowo mały"
+  },
+  "flash_critical": {
+    "action": "safe_flash_cleanup",
+    "action_label": "Bezpiecznie oczyść flash",
+    "cause": "Wolna przestrzeń lub liczba wolnych i-węzłów spadła do poziomu krytycznego.",
+    "consequences": "Zapisywanie ustawień, aktualizacja OPKG i uruchamianie wtyczek może zakończyć się błędem „Brak miejsca na urządzeniu”.",
+    "restart": "Po zwolnieniu miejsca wykonaj pełny restart dekodera.",
+    "steps": [
+      "Nie wykonuj aktualizacji systemu ani instalacji nowych paczek.",
+      "Najpierw usuń stare crashlogi i zbędne pliki tymczasowe.",
+      "Odinstaluj nieużywane wtyczki przez OPKG, zamiast kasować ich katalogi ręcznie.",
+      "Przenieś EPG i picony na nośnik zewnętrzny.",
+      "Po zwolnieniu miejsca ponownie uruchom diagnostykę."
+    ],
+    "title": "Krytycznie mało miejsca w pamięci flash"
+  },
+  "flash_low": {
+    "action": "safe_flash_cleanup",
+    "action_label": "Bezpiecznie oczyść flash",
+    "cause": "Pamięć systemowa jest prawie zapełniona przez wtyczki, logi, pamięć podręczną, EPG albo inne pliki.",
+    "consequences": "Aktualizacje i instalacje mogą się nie udać, a Enigma2 może zacząć działać niestabilnie.",
+    "restart": "Po porządkowaniu zalecany jest restart GUI.",
+    "steps": [
+      "Nie instaluj kolejnych paczek do czasu zwolnienia miejsca.",
+      "Usuń nieużywane wtyczki przez menedżer pakietów systemu.",
+      "Usuń stare crashlogi, pozostawiając najnowsze do diagnostyki.",
+      "Przenieś picony i plik EPG na dysk lub pendrive.",
+      "Sprawdź największe pliki i usuń wyłącznie te, których przeznaczenie znasz."
+    ],
+    "title": "Mało wolnego miejsca w pamięci flash"
+  },
+  "flash_read_error": {
+    "cause": "System nie zwrócił prawidłowych danych o głównym systemie plików.",
+    "consequences": "Nie można wiarygodnie ocenić ilości wolnego miejsca ani stanu i-węzłów.",
+    "steps": [
+      "Uruchom ponownie dekoder i wykonaj skan jeszcze raz.",
+      "Sprawdź wynik polecenia: df -h /.",
+      "Sprawdź log jądra poleceniem: dmesg | tail -n 100.",
+      "Jeżeli system plików jest tylko do odczytu, nie próbuj instalować paczek."
+    ],
+    "title": "Nie można odczytać pamięci systemowej"
+  },
+  "https_error": {
+    "action": "network_test",
+    "action_label": "Wykonaj test sieci",
+    "cause": "Połączenie może blokować router, zapora, błędna data systemowa albo problem z trasą do internetu.",
+    "consequences": "Pobieranie wtyczek, list kanałów i aktualizacji z serwerów HTTPS może się nie udać.",
+    "steps": [
+      "Sprawdź datę i czas systemowy.",
+      "Uruchom test adresu IP, bramy, DNS oraz portu 443.",
+      "Sprawdź, czy router nie blokuje ruchu wychodzącego.",
+      "Uruchom ponownie interfejs sieciowy lub router, jeśli problem dotyczy także innych urządzeń."
+    ],
+    "title": "DNS działa, ale połączenie HTTPS nie jest dostępne"
+  },
+  "mount_readonly": {
+    "cause": "System wykrył błąd systemu plików, nośnik został zabezpieczony albo zamontowano go z opcją ro.",
+    "consequences": "Nagrania, timeshift, EPG, picony i kopie zapasowe nie mogą być zapisywane.",
+    "restart": "Po naprawie systemu plików podłącz nośnik ponownie lub uruchom dekoder.",
+    "steps": [
+      "Nie formatuj nośnika przed skopiowaniem ważnych danych.",
+      "Odłącz nośnik poprawnie i sprawdź go na komputerze.",
+      "Wykonaj kontrolę systemu plików odpowiednim narzędziem, gdy partycja jest odmontowana.",
+      "Sprawdź kabel, zasilanie i stan SMART dysku, jeśli problem powraca."
+    ],
+    "title": "Nośnik jest zamontowany tylko do odczytu"
+  },
+  "opkg_broken": {
+    "cause": "Instalacja lub usuwanie pakietu zostało przerwane, zabrakło miejsca albo nie zostały spełnione zależności.",
+    "consequences": "Aktualizacje i instalacje kolejnych wtyczek mogą kończyć się błędami.",
+    "steps": [
+      "Najpierw sprawdź wolne miejsce we flashu.",
+      "Nie wykonuj pełnej aktualizacji systemu, dopóki nie ustalisz przyczyny.",
+      "Sprawdź pakiety wskazane w danych technicznych: {packages}.",
+      "W konsoli wykonaj opkg configure dla niedokończonych instalacji tylko wtedy, gdy masz kopię systemu.",
+      "Jeśli problem dotyczy konkretnej wtyczki, odinstaluj jej uszkodzoną paczkę i zainstaluj poprawną wersję."
+    ],
+    "title": "Pakiety OPKG są w niepełnym stanie"
+  },
+  "opkg_db_missing": {
+    "cause": "Plik /var/lib/opkg/status nie istnieje albo katalog OPKG jest uszkodzony.",
+    "consequences": "OPKG może nie rozpoznawać zainstalowanych paczek i błędnie zarządzać zależnościami.",
+    "steps": [
+      "Nie wykonuj masowej aktualizacji pakietów.",
+      "Sprawdź zawartość katalogu /var/lib/opkg.",
+      "Przywróć bazę z kopii systemu lub napraw obraz zgodnie z dokumentacją jego twórców.",
+      "Jeżeli uszkodzenie jest rozległe, bezpieczniejsze może być ponowne wgranie obrazu."
+    ],
+    "title": "Brakuje bazy zainstalowanych pakietów OPKG"
+  },
+  "opkg_lock": {
+    "action": "remove_opkg_lock",
+    "action_label": "Usuń blokadę OPKG",
+    "cause": "Poprzednia instalacja lub aktualizacja została przerwana i pozostawiła plik blokady.",
+    "consequences": "Kolejne operacje OPKG mogą kończyć się informacją, że menedżer pakietów jest zajęty.",
+    "steps": [
+      "Upewnij się, że żadna instalacja ani aktualizacja obecnie nie trwa.",
+      "Usuń wyłącznie nieaktywny plik blokady.",
+      "Ponownie uruchom operację OPKG.",
+      "Jeżeli blokada wraca, sprawdź log instalacji i wolne miejsce we flashu."
+    ],
+    "title": "Pozostała nieaktywna blokada OPKG"
+  },
+  "opkg_missing": {
+    "cause": "Program OPKG został usunięty, uszkodzony albo używany obraz korzysta z nietypowej lokalizacji.",
+    "consequences": "Nie będzie możliwe poprawne instalowanie, aktualizowanie i usuwanie paczek IPK.",
+    "steps": [
+      "Sprawdź, czy istnieje plik /usr/bin/opkg.",
+      "Nie kopiuj przypadkowego pliku OPKG z innego obrazu.",
+      "Przywróć OPKG z paczki przeznaczonej dokładnie dla używanego obrazu.",
+      "Jeśli brakuje wielu plików systemowych, rozważ ponowne wgranie obrazu."
+    ],
+    "title": "Nie znaleziono menedżera pakietów OPKG"
+  },
+  "oscam_stopped": {
+    "action": "restart_oscam",
+    "action_label": "Uruchom OSCam",
+    "cause": "Softcam nie został uruchomiony, zakończył się błędem albo nie jest wybrany w panelu systemu.",
+    "consequences": "Kanały wymagające działającego softcamu nie będą obsługiwane.",
+    "steps": [
+      "Sprawdź, czy OSCam jest wybrany jako aktywny softcam.",
+      "Sprawdź uprawnienia pliku wykonywalnego OSCam.",
+      "Sprawdź ostatnie wpisy logu OSCam, nie publikując danych dostępowych.",
+      "Uruchom ponownie OSCam."
+    ],
+    "title": "Konfiguracja OSCam istnieje, ale proces nie działa"
+  },
+  "python3_required": {
+    "cause": "Uruchomiony system Enigma2 korzysta z innej głównej wersji Pythona niż wymaga ta paczka.",
+    "consequences": "Wtyczka może nie uruchamiać się albo powodować błędy importu i składni.",
+    "restart": "Po instalacji zgodnej paczki wykonaj restart GUI.",
+    "steps": [
+      "Sprawdź wersję Pythona poleceniem: python3 --version.",
+      "Zainstaluj wydanie E2 Doctor przeznaczone dla używanej wersji systemu.",
+      "Nie podmieniaj ręcznie bibliotek Pythona w obrazie Enigma2."
+    ],
+    "title": "Wymagane środowisko Python 3"
+  },
+  "ram_critical": {
+    "action": "safe_ram_refresh",
+    "action_label": "Bezpiecznie odśwież RAM",
+    "cause": "Pamięć dostępna dla nowych procesów jest niemal wyczerpana, a wolny SWAP jest zbyt mały.",
+    "consequences": "Enigma2 może zostać zamknięta przez system, zawiesić się albo utworzyć crashlog.",
+    "restart": "Zalecany jest restart GUI, a przy ponownym wystąpieniu problemu pełny restart dekodera.",
+    "steps": [
+      "Sprawdź procesy zajmujące najwięcej RAM.",
+      "Nie uruchamiaj kolejnych wymagających wtyczek.",
+      "Wykonaj restart GUI.",
+      "Jeśli pamięć ponownie szybko spada, usuń lub zaktualizuj wtyczkę powodującą wyciek pamięci."
+    ],
+    "title": "Krytycznie mało pamięci RAM"
+  },
+  "ram_low": {
+    "action": "safe_ram_refresh",
+    "action_label": "Bezpiecznie odśwież RAM",
+    "cause": "Jedna lub kilka usług zużywa dużo pamięci albo system długo działa bez restartu GUI.",
+    "consequences": "Menu może reagować wolniej, a wymagające wtyczki mogą się zamykać lub powodować crash.",
+    "restart": "Najpierw wykonaj restart GUI; pełny restart dekodera jest potrzebny tylko wtedy, gdy problem powraca.",
+    "steps": [
+      "Sprawdź procesy zużywające najwięcej pamięci.",
+      "Zamknij nieużywane wtyczki i odtwarzacze.",
+      "Jeżeli problem pojawił się po uruchomieniu konkretnej wtyczki, zaktualizuj ją lub usuń.",
+      "Wykonaj restart GUI i sprawdź, czy ilość wolnej pamięci wzrosła."
+    ],
+    "title": "Mało dostępnej pamięci RAM"
+  },
+  "storage_warning": {
+    "action": "storage_diagnostic",
+    "action_label": "Pokaż diagnostykę nośników",
+    "cause": "Log kernela albo punkt montowania wskazuje problem z zapisem, nieprawidłowym odmontowaniem, trybem tylko do odczytu lub małą ilością wolnego miejsca.",
+    "consequences": "Nagrania, timeshift, EPG lub backup mogą się nie zapisywać, a dalsza praca może pogłębić uszkodzenie systemu plików.",
+    "restart": "Po naprawie lub ponownym zamontowaniu nośnika wykonaj pełny restart dekodera.",
+    "steps": [
+      "Nie odłączaj nośnika podczas zapisu.",
+      "Sprawdź, którego urządzenia dotyczy komunikat: {errors}.",
+      "Wykonaj kopię ważnych nagrań i plików.",
+      "Naprawę systemu plików wykonuj po jego odmontowaniu, najlepiej na komputerze lub w trybie serwisowym.",
+      "Jeśli pojawiają się błędy I/O, rozważ wymianę nośnika."
+    ],
+    "title": "Ostrzeżenie dotyczące nośnika lub systemu plików"
+  },
+  "system_load_high": {
+    "action": "show_processes",
+    "action_label": "Pokaż procesy",
+    "cause": "Procesor jest przez dłuższą chwilę obciążony ponad możliwości dekodera. Przyczyną może być zawieszona wtyczka, skanowanie, aktualizacja, transkodowanie lub problem z nośnikiem.",
+    "consequences": "Menu może reagować wolno, obraz może się zacinać, a wtyczki mogą nie odpowiadać.",
+    "restart": "Restart GUI jest wskazany tylko wtedy, gdy wysokie obciążenie utrzymuje się bez wyraźnej przyczyny.",
+    "steps": [
+      "Odczekaj kilka minut i wykonaj skan ponownie.",
+      "Otwórz Bezpieczne narzędzia i sprawdź procesy zużywające RAM oraz CPU.",
+      "Zamknij uruchomione wtyczki, skanowanie kanałów i odtwarzanie wymagających strumieni.",
+      "Jeśli obciążenie nie spada, wykonaj restart GUI, a następnie pełny restart dekodera."
+    ],
+    "title": "Wysokie obciążenie systemu"
+  },
+  "temperature_critical": {
+    "cause": "Urządzenie nie jest prawidłowo chłodzone albo czujnik wskazuje niebezpieczną wartość.",
+    "consequences": "Dekoder może się zawieszać, wyłączać lub ulec uszkodzeniu.",
+    "restart": "Wyłącz dekoder i pozwól mu ostygnąć przed ponownym uruchomieniem.",
+    "steps": [
+      "Zakończ wymagające operacje i wyłącz dekoder.",
+      "Sprawdź drożność otworów wentylacyjnych i pracę wentylatora, jeśli występuje.",
+      "Po ostygnięciu uruchom urządzenie w przewiewnym miejscu.",
+      "Jeżeli temperatura szybko ponownie rośnie, urządzenie wymaga kontroli technicznej."
+    ],
+    "title": "Krytyczna temperatura dekodera"
+  },
+  "temperature_high": {
+    "cause": "Wentylacja jest ograniczona, urządzenie stoi w zamkniętej szafce albo procesor jest stale mocno obciążony.",
+    "consequences": "Możliwe są spowolnienia, niestabilność i skrócenie żywotności podzespołów.",
+    "steps": [
+      "Zapewnij wolną przestrzeń wokół otworów wentylacyjnych.",
+      "Usuń kurz z obudowy bez otwierania urządzenia pod napięciem.",
+      "Nie stawiaj dekodera na innym nagrzewającym się urządzeniu.",
+      "Sprawdź temperaturę ponownie po kilkunastu minutach."
+    ],
+    "title": "Wysoka temperatura dekodera"
+  },
+  "time_invalid": {
+    "action": "sync_time",
+    "action_label": "Synchronizuj czas",
+    "cause": "Dekoder nie zsynchronizował zegara z internetem albo usługa czasu nie działa.",
+    "consequences": "Mogą występować błędy HTTPS, EPG, certyfikatów oraz aktualizacji.",
+    "restart": "Restart GUI zwykle nie jest wymagany.",
+    "steps": [
+      "Sprawdź połączenie sieciowe i ustawioną strefę czasową.",
+      "Uruchom ponownie usługę chronyd lub ntpd.",
+      "Po synchronizacji sprawdź bieżącą datę poleceniem: date.",
+      "Jeżeli czas ponownie się zeruje po odłączeniu zasilania, sprawdź ustawienia obrazu i sprzętu."
+    ],
+    "title": "Nieprawidłowa data lub czas systemowy"
+  },
+  "tuner_hardware_missing": {
+    "cause": "Sterownik tunera nie udostępnił danych w /proc/bus/nim_sockets albo obraz używa innego interfejsu diagnostycznego.",
+    "consequences": "E2 Doctor nie może potwierdzić liczby i typu zainstalowanych głowic.",
+    "steps": [
+      "Sprawdź w menu systemowym, czy głowice są widoczne.",
+      "Wykonaj pełny restart dekodera.",
+      "Jeżeli głowice nadal nie są widoczne, sprawdź zgodność obrazu i sterowników z modelem tunera.",
+      "Nie zmieniaj konfiguracji głowic, dopóki system ich nie wykrywa."
+    ],
+    "title": "Nie można odczytać listy głowic"
+  },
+  "tuner_missing": {
+    "cause": "W pliku ustawień nie ma wpisów config.Nims albo ustawienia nie zostały jeszcze zapisane.",
+    "consequences": "Skanowanie satelitarne, kablowe lub naziemne może nie działać.",
+    "steps": [
+      "Otwórz Menu → Konfiguracja → Wyszukiwanie kanałów → Konfiguracja tunera.",
+      "Skonfiguruj każdą używaną głowicę zgodnie z instalacją antenową.",
+      "Zapisz ustawienia i wykonaj ponowny skan E2 Doctor.",
+      "Nie kopiuj konfiguracji głowic z innego modelu dekodera."
+    ],
+    "title": "Nie znaleziono konfiguracji głowic"
+  },
+  "tuner_no_lock": {
+    "cause": "Brak sygnału może wynikać z instalacji antenowej, konfiguracji DiSEqC/Unicable, złej częstotliwości albo chwilowej niedostępności transpondera.",
+    "consequences": "Kanał nie będzie wyświetlał obrazu lub pojawi się komunikat o braku danych.",
+    "steps": [
+      "Sprawdź, czy problem dotyczy jednego kanału czy wszystkich kanałów z danej satelity.",
+      "Sprawdź przewód antenowy i złącza.",
+      "Porównaj konfigurację głowicy z posiadaną instalacją DiSEqC lub Unicable.",
+      "Sprawdź sygnał na innym znanym, aktywnym transponderze.",
+      "Nie uruchamiaj automatycznej zmiany konfiguracji głowic bez wykonania kopii ustawień."
+    ],
+    "title": "Aktywna głowica nie uzyskała sygnału LOCK"
+  },
+  "tuner_xml_missing": {
+    "cause": "Ustawienia głowic istnieją, ale nie znaleziono satellites.xml, cables.xml ani terrestrial.xml.",
+    "consequences": "Ręczne lub automatyczne skanowanie może nie wyświetlać dostępnych pozycji i częstotliwości.",
+    "restart": "Po instalacji plików XML wykonaj restart GUI.",
+    "steps": [
+      "Zainstaluj aktualny plik satellites.xml lub odpowiedni pakiet danych skanowania.",
+      "Sprawdź katalog /etc/tuxbox.",
+      "Użyj pliku przeznaczonego dla Enigma2 i nie zmieniaj ustawień głowic bez potrzeby.",
+      "Po podmianie wykonaj restart GUI."
+    ],
+    "title": "Brakuje plików danych do skanowania"
+  }
+}
