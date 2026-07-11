@@ -1,16 +1,23 @@
 {
   "name": "E2 Doctor",
-  "version": "2.2",
-  "build": "20260711-3",
+  "version": "2.3",
+  "build": "20260711-4",
   "release_date": "2026-07-11",
   "min_python": 3,
-  "download_url": "https://raw.githubusercontent.com/OliOli2013/E2-Doctor-Plugin/main/releases/enigma2-plugin-extensions-e2doctor_2.2_all.ipk",
-  "sha256": "c7b93ba2cb2c4a864c398760384779abf6bda81e29a917ffd0f338d395a25b27",
+  "download_url": "https://raw.githubusercontent.com/OliOli2013/E2-Doctor-Plugin/main/releases/enigma2-plugin-extensions-e2doctor_2.3_all.ipk",
+  "sha256": "519532845210805fd66e57f62de17d560b21186c0599a48478aa3ad186736360",
   "notes": [
-    "Nowy panel główny w stylu premium z kafelkami modułów i ikonami.",
-    "Skrócono statusy i usunięto problem z obcinaniem napisu po prawej stronie.",
-    "Każdy moduł ma teraz ikonę, opis oraz czytelny badge stanu.",
-    "Zachowano naprawę z poziomu problemu, centrum szybkiej naprawy oraz aktualizację z GitHub.",
-    "Interfejs został przygotowany tak, aby wyglądał nowocześnie również na tunerach Enigma2."
+    "Poprawiono obcięte piktogramy i dodano osobne ikony dla HD oraz Full HD.",
+    "Dodano wybór języka: automatyczny, polski lub angielski.",
+    "W trybie automatycznym polski jest używany tylko w polskim systemie; pozostałe języki uruchamiają interfejs angielski.",
+    "Przetłumaczono panel, diagnostykę, rozwiązania, ustawienia, historię, raporty i analizator IPK.",
+    "Zachowano naprawę z poziomu problemu oraz aktualizację bezpośrednio z GitHub."
+  ],
+  "notes_en": [
+    "Fixed clipped pictograms and added separate icon sets for HD and Full HD.",
+    "Added language selection: automatic, Polish or English.",
+    "In automatic mode Polish is used only for a Polish system language; every other system language opens the English interface.",
+    "Translated the dashboard, diagnostics, solutions, settings, history, reports and IPK analyser.",
+    "Kept problem-level repair actions and direct updates from GitHub."
   ]
 }

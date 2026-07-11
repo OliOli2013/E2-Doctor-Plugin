@@ -1,3 +1,12 @@
+## E2 Doctor 2.3
+
+- poprawiono obcięte piktogramy: dodano osobne, prawidłowo skalowane ikony dla HD i Full HD,
+- dodano wybór języka: automatyczny, polski lub angielski,
+- w trybie automatycznym wtyczka otwiera się po polsku tylko przy polskim języku systemu; każdy inny język systemu uruchamia interfejs angielski,
+- przetłumaczono panel główny, moduły diagnostyczne, ustawienia, raporty, rozwiązania problemów, centrum naprawy, historię i analizator IPK,
+- przebudowano opisy w kartach: dynamiczny opis znajduje się w środkowej części, a po prawej wyświetlany jest krótki status,
+- zachowano aktualizację z GitHub, naprawę z poziomu problemu i wszystkie bezpieczne narzędzia.
+
 ## E2 Doctor 2.2
 
 - nowy panel główny w stylu premium z kafelkami modułów, ikonami i krótszymi statusami,

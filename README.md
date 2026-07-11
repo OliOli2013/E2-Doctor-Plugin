@@ -1,3 +1,19 @@
+# E2 Doctor 2.3
+
+E2 Doctor 2.3 to centrum diagnostyki i bezpiecznej naprawy dla tunerów Enigma2 z Pythonem 3.
+
+## Języki
+
+- automatycznie według języka systemu,
+- polski,
+- angielski.
+
+Przy ustawieniu **Automatycznie** polski interfejs jest używany wyłącznie wtedy, gdy system Enigma2 działa po polsku. Dla każdego innego języka systemowego wtyczka uruchamia interfejs angielski.
+
+## Interfejs 2.3
+
+Wersja zawiera osobne, prawidłowo skalowane piktogramy dla ekranów HD i Full HD. Ikony nie są już przycinane przez renderer MultiContent Enigma2.
+
 # E2 Doctor 2.2
 
 Repozytorium zawiera źródła, paczkę IPK i pliki aktualizacji GitHub dla E2 Doctor 2.2.

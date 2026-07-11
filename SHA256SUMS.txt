@@ -1,2 +1,3 @@
 c4f106cef8a3877c5fdc97eeac8cac4c8a617f3f4436072c5e307cf96eb6c868  enigma2-plugin-extensions-e2doctor_2.1_all.ipk
 c7b93ba2cb2c4a864c398760384779abf6bda81e29a917ffd0f338d395a25b27  enigma2-plugin-extensions-e2doctor_2.2_all.ipk
+519532845210805fd66e57f62de17d560b21186c0599a48478aa3ad186736360  enigma2-plugin-extensions-e2doctor_2.3_all.ipk

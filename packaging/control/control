@@ -5,8 +5,8 @@ Maintainer: Paweł Pawełek
 Depends: python3-core
 Section: extra
 Priority: optional
-Description: E2 Doctor 2.1 - centrum diagnostyki i bezpiecznej naprawy Enigma2 Python 3
- Panel premium, centrum szybkiej naprawy, historia skanów i analiza crashlogów,
+Description: E2 Doctor 2.3 - centrum diagnostyki i bezpiecznej naprawy Enigma2 Python 3
+ Dwujęzyczny panel premium PL/EN, centrum szybkiej naprawy, historia skanów i analiza crashlogów,
  diagnostyka sieci, pamięci, głowic, nośników, OPKG, OSCam, EPG i piconów.
  Zawiera naprawy kontekstowe, bezpieczne czyszczenie RAM i flash, E2 Safe Installer,
- monitor problemów, aktualizację z GitHub, raport awaryjny oraz cofanie obsługiwanych zmian.
+ monitor problemów, automatyczny wybór języka systemu, aktualizację z GitHub, raport awaryjny oraz cofanie zmian.

@@ -1,0 +1,476 @@
+{
+  "bouquet_core_missing": {
+    "cause": "The bouquets.tv, bouquets.radio index or a valid lamedb file could not be found.",
+    "consequences": "The channel list may be empty, incomplete or impossible to reload.",
+    "restart": "Restart the Enigma2 GUI after restoring the files.",
+    "steps": [
+      "Do not run an automatic repair unless you have a backup of /etc/enigma2.",
+      "Restore the most recent known-good channel-list backup.",
+      "Make sure the files were extracted directly into /etc/enigma2.",
+      "Reload the channel list or restart the GUI after restoring the files."
+    ],
+    "title": "Main channel-list files are missing"
+  },
+  "bouquet_missing_refs": {
+    "action": "repair_bouquet_refs",
+    "action_label": "Repair references",
+    "cause": "bouquets.tv or bouquets.radio points to userbouquet files that do not exist in /etc/enigma2.",
+    "consequences": "The channel-list menu may contain empty entries, errors or an incomplete list.",
+    "restart": "A GUI restart is not required if the channel-list reload completes successfully.",
+    "steps": [
+      "Create a backup of the bouquet index files.",
+      "Remove only lines that refer to files that do not exist.",
+      "Do not delete existing userbouquet files.",
+      "Reload the channel list after the repair."
+    ],
+    "title": "The index contains references to missing bouquets"
+  },
+  "crash_generic": {
+    "cause": "The log contains a crash traceback, but E2 Doctor could not identify a single clear problem category.",
+    "consequences": "The problem may occur again when the same action is repeated.",
+    "steps": [
+      "Check the indicated location: {file}, line {line}, function {function}.",
+      "Write down the exact actions performed immediately before the crash.",
+      "Review the last traceback lines and the plug-in name.",
+      "Update the suspected plug-in and the Enigma2 image.",
+      "Send the complete crashlog to the developer together with the receiver model and image version."
+    ],
+    "title": "An Enigma2 crashlog was detected"
+  },
+  "crash_import": {
+    "cause": "A plug-in refers to a missing or incompatible function, class or library.",
+    "consequences": "This usually means that the plug-in is incompatible with the installed image or Python version.",
+    "restart": "Restart the GUI after changing or updating the plug-in.",
+    "steps": [
+      "Check the indicated location: {file}, line {line}, function {function}.",
+      "Check the plug-in name shown in the traceback: {plugin}.",
+      "Update the plug-in to a version compatible with the installed image.",
+      "If the error appeared after an image update, remove the old plug-in version and install the current one.",
+      "Do not copy individual libraries from another image."
+    ],
+    "title": "Plug-in import error"
+  },
+  "crash_network": {
+    "action": "network_test",
+    "action_label": "Run network test",
+    "cause": "The receiver has no active route to the internet or its network interface is not working.",
+    "consequences": "Plug-ins will not be able to download data, lists, updates or EPG information.",
+    "steps": [
+      "Check the IP address, gateway and DNS settings.",
+      "Check the wired or Wi-Fi connection.",
+      "Run the E2 Doctor network test.",
+      "Restart the router only if other devices are affected as well."
+    ],
+    "title": "The network is unavailable"
+  },
+  "crash_no_space": {
+    "action": "safe_flash_cleanup",
+    "action_label": "Safely clean flash",
+    "cause": "A process could not write a file because the partition is full or no free inodes remain.",
+    "consequences": "Settings, updates, logs and plug-in data may not be saved.",
+    "restart": "Restart the GUI after freeing space.",
+    "steps": [
+      "Do not perform further installations or updates.",
+      "Check free space and inodes with df -h and df -i.",
+      "Find the largest files in the system flash.",
+      "Remove old logs and uninstall unused packages."
+    ],
+    "title": "No space left on device"
+  },
+  "crash_permission": {
+    "cause": "A process tried to read, write or execute a file without the required permissions.",
+    "consequences": "The plug-in function cannot complete its operation.",
+    "steps": [
+      "Check the path shown in the crashlog.",
+      "Compare the owner and permissions with other files of the same type.",
+      "Do not apply chmod 777 to entire system directories.",
+      "Scripts and executable files normally require execute permission."
+    ],
+    "title": "Permission denied for a file or directory"
+  },
+  "crash_python_error": {
+    "cause": "The crashlog contains the error “{error}”. It is usually caused by an incompatible plug-in version, invalid data or a programming error.",
+    "consequences": "Opening the same screen or function may crash Enigma2 again.",
+    "restart": "Restart the GUI after updating or removing the faulty plug-in.",
+    "steps": [
+      "Check the indicated location: {file}, line {line}, function {function}.",
+      "Check the plug-in named in the traceback: {plugin}.",
+      "Update it to a version compatible with the installed image and Python version.",
+      "If the problem appeared after changing its configuration, restore the last known-good plug-in settings.",
+      "Send the complete crashlog and a description of the actions leading to the error to the plug-in developer."
+    ],
+    "title": "Python code error in a plug-in"
+  },
+  "crash_python_module": {
+    "cause": "The code tries to import the module “{module}”, but it is not installed in the system.",
+    "consequences": "The plug-in shown in the crashlog will not start until a compatible dependency is installed.",
+    "restart": "Restart the GUI after installing the dependency.",
+    "steps": [
+      "Check the indicated location: {file}, line {line}, function {function}.",
+      "Check which plug-in is named in the traceback: {plugin}.",
+      "Search the image feed for a package providing the module “{module}”.",
+      "Do not install packages with pip into the system Python when the image provides an OPKG package.",
+      "Install the dependency only if it is intended for the Python version used by the image."
+    ],
+    "title": "A Python module is missing"
+  },
+  "crash_readonly": {
+    "cause": "The kernel may have remounted a partition read-only after detecting filesystem errors.",
+    "consequences": "The system cannot save settings or install packages.",
+    "restart": "Perform a full receiver restart after repairing the filesystem.",
+    "steps": [
+      "Do not force writes before reviewing the kernel log.",
+      "Check mount and dmesg | tail -n 100.",
+      "Run a filesystem check from another system or service mode.",
+      "If the problem affects internal flash and returns, back up your data and reflash the image."
+    ],
+    "title": "The filesystem is read-only"
+  },
+  "crash_segfault": {
+    "cause": "The process terminated outside Python control. Possible causes include a native library, driver, corrupt file or insufficient memory.",
+    "consequences": "Enigma2 may restart immediately without a readable Python error.",
+    "restart": "Perform a full receiver restart after updating the affected component.",
+    "steps": [
+      "Identify the action performed immediately before the crash.",
+      "Update the image and the plug-in using native libraries.",
+      "Check available RAM and receiver temperature.",
+      "If the crash is repeatable, send the complete crashlog to the image or plug-in developer."
+    ],
+    "title": "System component segmentation fault"
+  },
+  "crash_skin": {
+    "cause": "The skin refers to a missing component, graphic, font or incompatible widget.",
+    "consequences": "Enigma2 may display a crash screen whenever a particular menu is opened.",
+    "restart": "Restart the GUI after changing the skin.",
+    "steps": [
+      "Select the default skin supplied with the image.",
+      "Restart the GUI.",
+      "Update or remove the skin named in the crashlog.",
+      "If the error affects only one plug-in, check that plug-in's own skin.xml file."
+    ],
+    "title": "Enigma2 skin error"
+  },
+  "crash_ssl": {
+    "action": "network_test",
+    "action_label": "Run network test",
+    "cause": "The system date, certificate store or SSL libraries are invalid.",
+    "consequences": "Downloads over HTTPS may be blocked.",
+    "steps": [
+      "Check the system date and time.",
+      "Update the CA certificate package from the image feed.",
+      "Do not disable SSL verification as a permanent workaround.",
+      "Check whether the issue affects many servers or only one."
+    ],
+    "title": "HTTPS certificate verification error"
+  },
+  "diagnostic_error": {
+    "cause": "E2 Doctor could not perform one of its tests on this image or receiver model.",
+    "consequences": "That test result is incomplete, but the remaining modules may still work correctly.",
+    "steps": [
+      "Save an E2 Doctor report.",
+      "Review the technical error details.",
+      "Send the report, receiver model and image version to the plug-in developer.",
+      "Do not make manual system changes based only on this message."
+    ],
+    "title": "A diagnostic module ended with an error"
+  },
+  "dns_error": {
+    "action": "network_test",
+    "action_label": "Run network test",
+    "cause": "The receiver cannot resolve a domain name to an IP address.",
+    "consequences": "GitHub, OPKG feeds and other internet services may be unavailable even though the network interface is connected.",
+    "steps": [
+      "Check that the receiver received an IP address, gateway and DNS servers.",
+      "Check the network cable or Wi-Fi connection.",
+      "Run gateway, DNS and HTTPS tests.",
+      "If necessary, configure the router DNS or a public DNS server in the network settings."
+    ],
+    "title": "DNS name resolution is not working"
+  },
+  "epg_small": {
+    "cause": "EPG data has not been downloaded yet, the import was interrupted or the file location is incorrect.",
+    "consequences": "Programme descriptions may not be displayed.",
+    "steps": [
+      "Check the EPG storage path in the image settings.",
+      "Run an EPG import manually and review its log.",
+      "Make sure the target storage device is mounted and writable.",
+      "Avoid storing a very large EPG file in flash on receivers with limited space."
+    ],
+    "title": "The EPG file is missing or unusually small"
+  },
+  "flash_critical": {
+    "action": "safe_flash_cleanup",
+    "action_label": "Safely clean flash",
+    "cause": "The system partition is almost full.",
+    "consequences": "Installing packages, saving settings and creating logs may fail and Enigma2 may become unstable.",
+    "restart": "Restart the GUI after freeing space.",
+    "steps": [
+      "Do not install or update packages until more space is available.",
+      "Use E2 Doctor to find the largest files.",
+      "Remove old crashlogs and temporary OPKG files.",
+      "Uninstall unused plug-ins and move EPG or picons to external storage."
+    ],
+    "title": "Critically low free flash space"
+  },
+  "flash_low": {
+    "action": "safe_flash_cleanup",
+    "action_label": "Safely clean flash",
+    "cause": "The amount of free space on the system partition is below the recommended level.",
+    "consequences": "Future updates and plug-in data may no longer fit in flash.",
+    "steps": [
+      "Check which files and directories use the most space.",
+      "Remove old crashlogs and unnecessary downloaded IPK or archive files.",
+      "Uninstall plug-ins you no longer use.",
+      "Move EPG and picons to a mounted external device when supported by the image."
+    ],
+    "title": "Low free flash space"
+  },
+  "flash_read_error": {
+    "cause": "E2 Doctor could not read filesystem statistics for the root partition.",
+    "consequences": "The free-space result is unavailable and a filesystem or compatibility issue may exist.",
+    "steps": [
+      "Check df -h and mount from a terminal.",
+      "Save an E2 Doctor report.",
+      "Check kernel messages for storage errors.",
+      "Do not format or repair the active root filesystem while Enigma2 is running."
+    ],
+    "title": "Flash filesystem information could not be read"
+  },
+  "https_error": {
+    "action": "network_test",
+    "action_label": "Run network test",
+    "cause": "DNS works, but an HTTPS connection could not be established.",
+    "consequences": "Updates and plug-ins using secure web connections may fail.",
+    "steps": [
+      "Check the system date and time.",
+      "Run the extended network test.",
+      "Check CA certificates and SSL packages installed in the image.",
+      "Check whether the router or firewall blocks outbound HTTPS connections."
+    ],
+    "title": "HTTPS connection failed"
+  },
+  "mount_readonly": {
+    "action": "storage_diagnostic",
+    "action_label": "Show storage diagnostics",
+    "cause": "One or more mounted devices are available only in read-only mode.",
+    "consequences": "Recordings, timeshift, EPG and backups cannot be written to the affected device.",
+    "restart": "Restart the receiver after safely checking and repairing the filesystem.",
+    "steps": [
+      "Identify the affected mount point.",
+      "Back up important data if the device can still be read.",
+      "Unmount the filesystem before running a repair tool.",
+      "If I/O errors are present, consider replacing the storage device."
+    ],
+    "title": "A storage device is mounted read-only"
+  },
+  "opkg_broken": {
+    "cause": "The OPKG database contains packages that are not fully installed or configured.",
+    "consequences": "Future package installations and updates may fail or leave the system inconsistent.",
+    "steps": [
+      "Do not perform a full image update until the package state is understood.",
+      "Review the packages listed in the technical details.",
+      "Check free flash space and the OPKG installation log.",
+      "Reinstall or remove only the affected packages using commands appropriate for the installed image."
+    ],
+    "title": "Incomplete OPKG package state detected"
+  },
+  "opkg_db_missing": {
+    "cause": "The installed-package database is missing, empty or unreadable.",
+    "consequences": "OPKG may not know which packages are installed and package management may be unsafe.",
+    "steps": [
+      "Check /var/lib/opkg/status and the OPKG configuration directories.",
+      "Do not copy a package database from another receiver or image.",
+      "Save your settings and verify the image filesystem.",
+      "If system package files are broadly damaged, reflash the correct image."
+    ],
+    "title": "The OPKG database is missing or unreadable"
+  },
+  "opkg_lock": {
+    "action": "remove_opkg_lock",
+    "action_label": "Remove inactive lock",
+    "cause": "An OPKG lock file remained after an interrupted installation or update.",
+    "consequences": "Package operations may report that the package manager is busy.",
+    "steps": [
+      "Make sure no installation or update is currently running.",
+      "Remove only an inactive lock file.",
+      "Run the OPKG operation again.",
+      "If the lock returns, inspect the installation log and free flash space."
+    ],
+    "title": "An inactive OPKG lock remains"
+  },
+  "opkg_missing": {
+    "cause": "The OPKG executable was removed, damaged or is stored in a non-standard location by the image.",
+    "consequences": "IPK packages cannot be installed, updated or removed correctly.",
+    "steps": [
+      "Check whether /usr/bin/opkg exists.",
+      "Do not copy a random OPKG binary from another image.",
+      "Restore OPKG only from a package intended for the exact image in use.",
+      "If many system files are missing, consider reflashing the image."
+    ],
+    "title": "The OPKG package manager was not found"
+  },
+  "oscam_stopped": {
+    "action": "restart_oscam",
+    "action_label": "Start OSCam",
+    "cause": "The softcam was not started, stopped with an error or is not selected in the image softcam panel.",
+    "consequences": "Services requiring a running softcam will not be handled.",
+    "steps": [
+      "Check that OSCam is selected as the active softcam.",
+      "Check execute permission on the OSCam binary.",
+      "Review the latest OSCam log entries without publishing credentials.",
+      "Restart OSCam."
+    ],
+    "title": "OSCam configuration exists, but the process is not running"
+  },
+  "python3_required": {
+    "cause": "The installed Enigma2 image uses a different major Python version than this package requires.",
+    "consequences": "The plug-in may fail to start or produce import and syntax errors.",
+    "restart": "Restart the GUI after installing a compatible package.",
+    "steps": [
+      "Check the Python version with python3 --version.",
+      "Install an E2 Doctor build intended for the Python version used by the image.",
+      "Do not manually replace Python libraries inside the Enigma2 image."
+    ],
+    "title": "Python 3 environment required"
+  },
+  "ram_critical": {
+    "action": "safe_ram_refresh",
+    "action_label": "Safely refresh RAM",
+    "cause": "Memory available to new processes is almost exhausted and free swap space is too low.",
+    "consequences": "Enigma2 may be terminated by the system, freeze or create a crashlog.",
+    "restart": "A GUI restart is recommended; perform a full receiver restart if the problem returns.",
+    "steps": [
+      "Check which processes use the most RAM.",
+      "Do not start additional demanding plug-ins.",
+      "Restart the Enigma2 GUI.",
+      "If available memory drops quickly again, update or remove the plug-in causing the memory leak."
+    ],
+    "title": "Critically low available RAM"
+  },
+  "ram_low": {
+    "action": "safe_ram_refresh",
+    "action_label": "Safely refresh RAM",
+    "cause": "One or more services use a large amount of memory or the GUI has been running for a long time.",
+    "consequences": "Menus may respond slowly and demanding plug-ins may close or crash.",
+    "restart": "First restart the GUI; a full receiver restart is only necessary if the problem returns.",
+    "steps": [
+      "Check which processes use the most memory.",
+      "Close unused plug-ins and media players.",
+      "If the issue started after opening a particular plug-in, update or remove it.",
+      "Restart the GUI and check whether available memory increased."
+    ],
+    "title": "Low available RAM"
+  },
+  "storage_warning": {
+    "action": "storage_diagnostic",
+    "action_label": "Show storage diagnostics",
+    "cause": "The kernel log or mount information indicates a write error, unsafe removal, read-only mode or low free space.",
+    "consequences": "Recordings, timeshift, EPG or backups may not be saved and continued use may worsen filesystem damage.",
+    "restart": "Perform a full receiver restart after repairing or remounting the device.",
+    "steps": [
+      "Do not disconnect the storage device while data is being written.",
+      "Identify the affected device: {errors}.",
+      "Back up important recordings and files.",
+      "Repair the filesystem only after unmounting it, preferably on a computer or in service mode.",
+      "If I/O errors appear, consider replacing the storage device."
+    ],
+    "title": "Storage or filesystem warning"
+  },
+  "system_load_high": {
+    "action": "show_processes",
+    "action_label": "Show processes",
+    "cause": "The processor has been heavily loaded for longer than expected. A stuck plug-in, scan, update, transcoding task or storage problem may be responsible.",
+    "consequences": "Menus may respond slowly, video may stutter and plug-ins may stop responding.",
+    "restart": "Restart the GUI only if high load remains without a clear reason.",
+    "steps": [
+      "Wait a few minutes and run the scan again.",
+      "Open Safe Tools and check the processes using the most RAM and CPU.",
+      "Close running plug-ins, channel scans and demanding streams.",
+      "If the load does not fall, restart the GUI and then the receiver if necessary."
+    ],
+    "title": "High system load"
+  },
+  "temperature_critical": {
+    "cause": "The receiver is not being cooled correctly or the sensor reports a dangerous temperature.",
+    "consequences": "The receiver may freeze, shut down or be damaged.",
+    "restart": "Switch off the receiver and allow it to cool before starting it again.",
+    "steps": [
+      "Stop demanding operations and switch off the receiver.",
+      "Check that ventilation openings are clear and the fan works, if fitted.",
+      "After cooling, place the receiver in a well-ventilated location and start it again.",
+      "If the temperature quickly rises again, the hardware requires technical inspection."
+    ],
+    "title": "Critical receiver temperature"
+  },
+  "temperature_high": {
+    "cause": "Ventilation is restricted, the receiver is placed in a closed cabinet or the processor remains heavily loaded.",
+    "consequences": "Slowdowns, instability and reduced component life may result.",
+    "steps": [
+      "Leave free space around all ventilation openings.",
+      "Remove dust from the enclosure without opening a powered device.",
+      "Do not place the receiver on another heat-producing device.",
+      "Check the temperature again after several minutes."
+    ],
+    "title": "High receiver temperature"
+  },
+  "time_invalid": {
+    "action": "sync_time",
+    "action_label": "Synchronise time",
+    "cause": "The receiver did not synchronise its clock over the internet or the time service is not working.",
+    "consequences": "HTTPS, EPG, certificate and update errors may occur.",
+    "restart": "A GUI restart is normally not required.",
+    "steps": [
+      "Check the network connection and configured time zone.",
+      "Restart chronyd or ntpd.",
+      "After synchronisation, check the current date with the date command.",
+      "If the clock resets after disconnecting power, check the image and hardware settings."
+    ],
+    "title": "Invalid system date or time"
+  },
+  "tuner_hardware_missing": {
+    "cause": "The tuner driver did not provide data in /proc/bus/nim_sockets or the image uses a different diagnostic interface.",
+    "consequences": "E2 Doctor cannot confirm the number and type of installed tuners.",
+    "steps": [
+      "Check in the image menus whether the tuners are visible.",
+      "Perform a full receiver restart.",
+      "If the tuners are still missing, verify that the image and drivers support the receiver model.",
+      "Do not change tuner configuration until the system detects the hardware."
+    ],
+    "title": "The tuner list cannot be read"
+  },
+  "tuner_missing": {
+    "cause": "No config.Nims entries exist in the settings file or tuner settings have not been saved yet.",
+    "consequences": "Satellite, cable or terrestrial scanning may not work.",
+    "steps": [
+      "Open Menu → Setup → Service searching → Tuner configuration.",
+      "Configure each tuner according to the connected antenna installation.",
+      "Save the settings and run E2 Doctor again.",
+      "Do not copy tuner settings from a different receiver model."
+    ],
+    "title": "No tuner configuration was found"
+  },
+  "tuner_no_lock": {
+    "cause": "No signal may be caused by the antenna system, DiSEqC/Unicable configuration, an incorrect frequency or a temporarily unavailable transponder.",
+    "consequences": "The channel will not display video or may report that no data is available.",
+    "steps": [
+      "Check whether the issue affects one channel or every channel from the same satellite.",
+      "Check the antenna cable and connectors.",
+      "Compare the tuner configuration with the installed DiSEqC or Unicable system.",
+      "Test another known active transponder.",
+      "Do not automatically change tuner settings without first backing up the configuration."
+    ],
+    "title": "The active tuner did not obtain LOCK"
+  },
+  "tuner_xml_missing": {
+    "cause": "Tuner settings exist, but satellites.xml, cables.xml or terrestrial.xml could not be found.",
+    "consequences": "Manual or automatic scanning may not show available positions and frequencies.",
+    "restart": "Restart the GUI after installing the XML files.",
+    "steps": [
+      "Install a current satellites.xml file or the appropriate scan-data package.",
+      "Check the /etc/tuxbox directory.",
+      "Use a file intended for Enigma2 and do not change tuner settings unnecessarily.",
+      "Restart the GUI after replacing the file."
+    ],
+    "title": "Scanning data files are missing"
+  }
+}

@@ -32,10 +32,10 @@ except Exception:
 try:
     from . import PLUGIN_VERSION, PLUGIN_AUTHOR, PLUGIN_EMAIL, PLUGIN_BUILD
 except Exception:
-    PLUGIN_VERSION = "2.2"
+    PLUGIN_VERSION = "2.3"
     PLUGIN_AUTHOR = "Paweł Pawełek"
     PLUGIN_EMAIL = "aio-iptv@wp.pl"
-    PLUGIN_BUILD = "20260711-3"
+    PLUGIN_BUILD = "20260711-4"
 
 PLUGIN_PATH = os.path.dirname(os.path.abspath(__file__))
 SETTINGS_FILE = "/etc/enigma2/settings"
@@ -2074,7 +2074,7 @@ def make_report(results):
     score = calculate_health_score(results)
     counts = result_counts(results)
     lines = [
-        "RAPORT DIAGNOSTYCZNY E2 DOCTOR 2.2",
+        "RAPORT DIAGNOSTYCZNY E2 DOCTOR 2.3",
         "=" * 78,
         "Utworzono: %s" % now.strftime("%Y-%m-%d %H:%M:%S"),
         "Wersja wtyczki: %s" % PLUGIN_VERSION,
@@ -3916,7 +3916,7 @@ class E2DoctorActionMixin(object):
         box_type = MessageBox.TYPE_ERROR if error else MessageBox.TYPE_INFO
         self.session.openWithCallback(lambda *args: self._finish_action(changed), MessageBox, message, box_type, timeout=10 if not error else 0)
 
-    def _open_action_text(self, title, text, status="E2 Doctor 2.2"):
+    def _open_action_text(self, title, text, status="E2 Doctor 2.3"):
         self.session.openWithCallback(lambda *args: self._finish_action(False), E2DoctorTextScreen, title, text, status)
 
     def _execute_pending_action(self):
@@ -4162,7 +4162,7 @@ class E2DoctorDashboardList(MenuList):
 class E2DoctorTextScreen(Screen):
     skin = premium_text_skin("E2DoctorTextScreen")
 
-    def __init__(self, session, title, text, status="E2 Doctor 2.2"):
+    def __init__(self, session, title, text, status="E2 Doctor 2.3"):
         Screen.__init__(self, session)
         self["header_bg"] = Label("")
         self["accent"] = Label("")
@@ -4756,7 +4756,7 @@ UPDATE_TEMP_IPK = "/tmp/e2doctor-github-update.ipk"
 try:
     PLUGIN_BUILD
 except NameError:
-    PLUGIN_BUILD = "20260711-2"
+    PLUGIN_BUILD = "20260711-4"
 
 
 def _version_parts(value):
@@ -5161,7 +5161,7 @@ E2DoctorDashboard.open_update = _e2d_dashboard_open_update
 E2DoctorDashboard.open_selected = _e2d_dashboard_open_selected_with_update
 
 # -----------------------------------------------------------------------------
-# E2 Doctor 2.2 - dashboard premium cards
+# E2 Doctor 2.3 - dashboard premium cards
 # -----------------------------------------------------------------------------
 try:
     from Components.MultiContent import MultiContentEntryPixmapAlphaBlend
@@ -5368,3 +5368,1364 @@ class E2DoctorDashboardList(MenuList):
 
 # aktywacja stylu 2.2 bez naruszania logiki ekranu
 E2DoctorDashboard.skin = dashboard_skin_22()
+
+# -----------------------------------------------------------------------------
+# E2 Doctor 2.3 - język systemu (PL/EN) i poprawione skalowanie ikon
+# -----------------------------------------------------------------------------
+DEFAULT_SETTINGS["language"] = "auto"
+
+try:
+    from Components.Language import language as _e2_system_language
+except Exception:
+    _e2_system_language = None
+
+try:
+    from Components.config import config as _e2_config
+except Exception:
+    _e2_config = None
+
+
+def _system_language_code():
+    value = ""
+    try:
+        if _e2_system_language is not None:
+            value = str(_e2_system_language.getLanguage() or "")
+    except Exception:
+        value = ""
+    if not value:
+        try:
+            value = str(_e2_config.osd.language.value or "")
+        except Exception:
+            value = ""
+    if not value:
+        value = os.environ.get("LANG", "")
+    return "pl" if value.lower().startswith("pl") else "en"
+
+
+def current_language_code(settings=None):
+    if settings is None:
+        try:
+            settings = load_e2doctor_settings()
+        except Exception:
+            settings = {}
+    selected = str((settings or {}).get("language", "auto") or "auto").lower()
+    if selected in ("pl", "en"):
+        return selected
+    return _system_language_code()
+
+
+def is_english():
+    return current_language_code() == "en"
+
+
+def L(pl_text, en_text):
+    return en_text if is_english() else pl_text
+
+
+_TITLE_EN = {
+    "System / Python": "System / Python",
+    "Pamięć flash": "Flash memory",
+    "Pamięć RAM": "RAM memory",
+    "Data i czas systemowy": "System date and time",
+    "Temperatura": "Temperature",
+    "Obciążenie systemu": "System load",
+    "DNS": "DNS",
+    "Połączenie z internetem": "Internet connection",
+    "Menedżer pakietów OPKG": "OPKG package manager",
+    "Spójność pakietów OPKG": "OPKG package integrity",
+    "Listy kanałów": "Channel lists",
+    "Konfiguracja głowic": "Tuner configuration",
+    "Wykryte głowice": "Detected tuners",
+    "Aktywna głowica i sygnał": "Active tuner and signal",
+    "Nośniki i punkty montowania": "Storage devices and mount points",
+    "Stan systemów plików": "Filesystem status",
+    "Pamięć EPG": "EPG storage",
+    "Picony": "Picons",
+    "OSCam": "OSCam",
+    "Crashlogi Enigma2": "Enigma2 crashlogs",
+}
+
+_EXACT_EN = {
+    "nieznana": "unknown",
+    "nieznany": "unknown",
+    "nie ustalono": "not determined",
+    "brak danych": "no data",
+    "brak daty": "no date",
+    "brak opisu": "no description",
+    "Moduł diagnostyczny zakończył się błędem": "The diagnostic module ended with an error",
+    "Domena github.com została poprawnie rozwiązana": "github.com was resolved correctly",
+    "Połączenie HTTPS działa poprawnie": "HTTPS connection works correctly",
+    "DNS działa, ale połączenie HTTPS nie powiodło się": "DNS works, but the HTTPS connection failed",
+    "Nie można rozwiązać domeny github.com": "github.com could not be resolved",
+    "Nie znaleziono programu OPKG": "The OPKG executable was not found",
+    "Nie znaleziono bazy zainstalowanych pakietów": "The installed-package database was not found",
+    "Możliwa nieaktywna blokada OPKG": "A possibly inactive OPKG lock was found",
+    "OPKG jest dostępny": "OPKG is available",
+    "Brakuje głównych plików listy kanałów lub są one puste": "Main channel-list files are missing or empty",
+    "Nie znaleziono wpisów konfiguracji głowic": "No tuner configuration entries were found",
+    "Ustawienia głowic istnieją, ale brakuje plików XML skanowania": "Tuner settings exist, but scanning XML files are missing",
+    "Plik EPG nie został jeszcze utworzony": "The EPG file has not been created yet",
+    "Plik EPG jest pusty lub nietypowo mały": "The EPG file is empty or unusually small",
+    "Katalog piconów istnieje, ale jest pusty": "The picon directory exists, but it is empty",
+    "Nie wykryto piconów": "No picons were detected",
+    "Proces OSCam jest uruchomiony": "The OSCam process is running",
+    "Konfiguracja istnieje, ale OSCam nie jest uruchomiony": "Configuration exists, but OSCam is not running",
+    "OSCam nie jest zainstalowany lub skonfigurowany": "OSCam is not installed or configured",
+    "Nie znaleziono crashlogów": "No crashlogs were found",
+    "Sprawdzono standardowe katalogi logów.": "Standard log directories were checked.",
+    "Czujnik temperatury jest niedostępny": "The temperature sensor is unavailable",
+    "Nie znaleziono czytelnego czujnika temperatury.": "No readable temperature sensor was found.",
+    "System nie udostępnił listy głowic": "The system did not provide a tuner list",
+    "Plik /proc/bus/nim_sockets jest pusty lub niedostępny.": "The /proc/bus/nim_sockets file is empty or unavailable.",
+    "Brak sesji Enigma2 do odczytu sygnału": "No Enigma2 session is available for signal reading",
+    "Uruchom diagnostykę z panelu E2 Doctor podczas oglądania kanału.": "Run diagnostics from E2 Doctor while watching a channel.",
+    "Nie wykryto bieżących błędów nośników": "No current storage errors were detected",
+    "Nie można przeanalizować bazy pakietów": "The package database could not be analysed",
+    "Brak czytelnych wpisów w /var/lib/opkg/status.": "No readable entries were found in /var/lib/opkg/status.",
+    "Baza pakietów nie zawiera niepełnych instalacji": "The package database contains no incomplete installations",
+    "Nie można odczytać informacji o systemie plików": "Filesystem information could not be read",
+    "Nie jest odtwarzany kanał": "No channel is currently playing",
+    "Aktualna usługa nie korzysta z głowicy DVB": "The current service does not use a DVB tuner",
+    "Odczyt parametrów sygnału jest niedostępny": "Signal parameters are unavailable",
+    "Nie udało się wykonać odczytu": "The reading could not be completed",
+    "Nie udało się odczytać obciążenia": "System load could not be read",
+    "Brak aktywnej usługi.": "No active service.",
+    "Brak ostrzeżeń i błędów.": "No warnings or errors.",
+    "Brak wyników dla wybranego modułu.": "No results are available for the selected module.",
+    "Wtyczka wymaga środowiska Python 3": "The plug-in requires Python 3",
+}
+
+_REGEX_EN = [
+    (r"^Krytycznie mało wolnego miejsca: (.+)$", r"Critically low free space: \1"),
+    (r"^Mało wolnego miejsca: (.+)$", r"Low free space: \1"),
+    (r"^Wolne: (.+)$", r"Free: \1"),
+    (r"^Krytycznie mało dostępnej pamięci RAM: (.+)$", r"Critically low available RAM: \1"),
+    (r"^Mało dostępnej pamięci RAM: (.+)$", r"Low available RAM: \1"),
+    (r"^Dostępne: (.+)$", r"Available: \1"),
+    (r"^Brakujące odwołania do bukietów: (\d+)$", r"Missing bouquet references: \1"),
+    (r"^Bukiety: (\d+), brak błędnych odwołań$", r"Bouquets: \1, no invalid references"),
+    (r"^Wykryto wpisy konfiguracji: (\d+)$", r"Configuration entries detected: \1"),
+    (r"^Liczba wykrytych głowic: (\d+)$", r"Detected tuners: \1"),
+    (r"^Wykryto zewnętrzne nośniki: (\d+)$", r"External storage devices detected: \1"),
+    (r"^Nie wykryto zewnętrznego nośnika$", r"No external storage device was detected"),
+    (r"^Nośniki tylko do odczytu: (.+)$", r"Read-only storage devices: \1"),
+    (r"^Rozmiar: (.+)$", r"Size: \1"),
+    (r"^Wykryto picony: (\d+)$", r"Picons detected: \1"),
+    (r"^Crashlogi: (\d+), brak rozpoznanego wzorca$", r"Crashlogs: \1, no recognised pattern"),
+    (r"^Crashlogi: (\d+), brak jednoznacznego rozpoznania$", r"Crashlogs: \1, no unambiguous diagnosis"),
+    (r"^Wykryto ostrzeżenia dotyczące nośników: (\d+)$", r"Storage warnings detected: \1"),
+    (r"^Wykryto pakiety w niepełnym stanie: (\d+)$", r"Packages in an incomplete state: \1"),
+    (r"^Temperatura krytyczna: (.+)$", r"Critical temperature: \1"),
+    (r"^Wysoka temperatura: (.+)$", r"High temperature: \1"),
+    (r"^Bardzo wysokie obciążenie CPU: (.+)$", r"Very high CPU load: \1"),
+    (r"^Wysokie obciążenie CPU: (.+)$", r"High CPU load: \1"),
+    (r"^Obciążenie 1 min: (.+)$", r"1-minute load: \1"),
+    (r"^Brak modułu Python: (.+)$", r"Missing Python module: \1"),
+    (r"^Błąd importu: (.+)$", r"Import error: \1"),
+    (r"^Błąd skina: (.+)$", r"Skin error: \1"),
+    (r"^Błąd składni Python: (.+)$", r"Python syntax error: \1"),
+    (r"^Błąd wcięć Python: (.+)$", r"Python indentation error: \1"),
+    (r"^Błąd typu danych: (.+)$", r"Data type error: \1"),
+    (r"^Błąd wykonania: (.+)$", r"Runtime error: \1"),
+    (r"^Brak klucza w danych wtyczki: (.+)$", r"Missing key in plug-in data: \1"),
+    (r"^Błąd indeksu lub listy we wtyczce: (.+)$", r"Index or list error in plug-in: \1"),
+    (r"^Błąd zgodności wtyczki lub API: (.+)$", r"Plug-in or API compatibility error: \1"),
+    (r"^Brak wolnego miejsca na urządzeniu$", r"No space left on device"),
+    (r"^Brak uprawnień do pliku lub katalogu$", r"Permission denied for a file or directory"),
+    (r"^System plików jest zamontowany tylko do odczytu$", r"The filesystem is mounted read-only"),
+    (r"^Błąd weryfikacji certyfikatu HTTPS$", r"HTTPS certificate verification error"),
+    (r"^Sieć jest niedostępna$", r"The network is unavailable"),
+    (r"^Błąd segmentacji składnika systemowego$", r"System component segmentation fault"),
+]
+
+_LINE_REPLACEMENTS_EN = [
+    ("System:", "System:"),
+    ("Kompilacja:", "Build:"),
+    ("Architektura:", "Architecture:"),
+    ("Całkowita:", "Total:"),
+    ("Dostępne:", "Available:"),
+    ("Wolne:", "Free:"),
+    ("SWAP wolny:", "Free swap:"),
+    ("Lokalny czas systemowy:", "Local system time:"),
+    ("Odnalezione adresy:", "Resolved addresses:"),
+    ("Połączenie TCP z", "TCP connection to"),
+    ("Najnowszy log:", "Newest log:"),
+    ("Ostatnia modyfikacja:", "Last modified:"),
+    ("Wykryte logi:", "Detected logs:"),
+    ("Liczba logów:", "Log count:"),
+    ("Powtórzenia tego błędu:", "Occurrences of this error:"),
+    ("Wiek logu:", "Log age:"),
+    ("Podejrzana wtyczka:", "Suspected plug-in:"),
+    ("Plik:", "File:"),
+    ("Linia:", "Line:"),
+    ("funkcja:", "function:"),
+    ("Rozpoznanie:", "Diagnosis:"),
+    ("Referencja:", "Reference:"),
+    ("Zainstalowane wpisy:", "Installed entries:"),
+    ("Nieprawidłowe stany:", "Invalid states:"),
+    ("Punkty montowania", "Mount points"),
+    ("Wykorzystanie miejsca", "Space usage"),
+    ("Ostatnie komunikaty kernela", "Latest kernel messages"),
+    ("Brak danych", "No data"),
+    ("godz.", "hours"),
+]
+
+
+def translate_text(value):
+    if not is_english() or value is None:
+        return value
+    text = str(value)
+    if text in _TITLE_EN:
+        return _TITLE_EN[text]
+    if text in _EXACT_EN:
+        return _EXACT_EN[text]
+    lines = []
+    for original_line in text.split("\n"):
+        line = _TITLE_EN.get(original_line, _EXACT_EN.get(original_line, original_line))
+        for pattern, replacement in _REGEX_EN:
+            if re.match(pattern, line):
+                line = re.sub(pattern, replacement, line)
+                break
+        for source, target in _LINE_REPLACEMENTS_EN:
+            line = line.replace(source, target)
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def translated_item(item):
+    result = dict(item or {})
+    for key in ("title", "summary", "details"):
+        result[key] = translate_text(result.get(key, ""))
+    return result
+
+
+# Polish and English solution databases.
+_SOLUTIONS_PL_23 = SOLUTIONS
+try:
+    with open(os.path.join(PLUGIN_PATH, "data", "solutions_en.json"), "r", encoding="utf-8") as _handle:
+        _SOLUTIONS_EN_23 = json.load(_handle)
+except Exception:
+    _SOLUTIONS_EN_23 = {}
+
+
+def get_solution(item):
+    solution_id = (item or {}).get("solution_id")
+    database = _SOLUTIONS_EN_23 if is_english() else _SOLUTIONS_PL_23
+    raw = database.get(solution_id, {}) if solution_id else {}
+    context = dict((item or {}).get("context") or {})
+    context.setdefault("title", translate_text((item or {}).get("title", "")))
+    context.setdefault("summary", translate_text((item or {}).get("summary", "")))
+    context.setdefault("plugin", L("nie ustalono", "not determined"))
+    context.setdefault("module", L("nie ustalono", "not determined"))
+    context.setdefault("error", translate_text((item or {}).get("summary", L("nie ustalono", "not determined"))))
+    context.setdefault("file", L("nie ustalono", "not determined"))
+    context.setdefault("line", L("nie ustalono", "not determined"))
+    context.setdefault("function", L("nie ustalono", "not determined"))
+    solution = {}
+    for key, value in raw.items():
+        if isinstance(value, list):
+            solution[key] = [safe_format(entry, context) for entry in value]
+        else:
+            solution[key] = safe_format(value, context)
+    if (item or {}).get("safe_action"):
+        solution["action"] = (item or {}).get("safe_action")
+    if solution.get("action") == "disable_suspect_plugin":
+        solution.setdefault("action_label", L("Wyłącz podejrzaną wtyczkę", "Disable suspected plug-in"))
+    return solution
+
+
+def status_name(status):
+    if is_english():
+        return {STATUS_OK: "RESULT OK", STATUS_WARN: "WARNING", STATUS_ERROR: "ERROR DETECTED", STATUS_INFO: "INFORMATION"}.get(status, "RESULT")
+    return {STATUS_OK: "WYNIK PRAWIDŁOWY", STATUS_WARN: "OSTRZEŻENIE", STATUS_ERROR: "WYKRYTY BŁĄD", STATUS_INFO: "INFORMACJA"}.get(status, "WYNIK")
+
+
+def health_grade(score):
+    if score >= 92:
+        return L("ZNAKOMITY", "EXCELLENT")
+    if score >= 78:
+        return L("DOBRY", "GOOD")
+    if score >= 58:
+        return L("WYMAGA UWAGI", "NEEDS ATTENTION")
+    return L("KRYTYCZNY", "CRITICAL")
+
+
+def build_solution_text(item, include_technical=False):
+    shown = translated_item(item)
+    solution = get_solution(item)
+    lines = [status_name((item or {}).get("status")), "", shown.get("title", ""), L("Wykryto: %s", "Detected: %s") % shown.get("summary", "")]
+    if solution:
+        lines.extend(["", L("MOŻLIWA PRZYCZYNA", "POSSIBLE CAUSE"), "", solution.get("cause", L("Brak dodatkowego opisu przyczyny.", "No additional cause description is available."))])
+        consequences = solution.get("consequences")
+        if consequences:
+            lines.extend(["", L("MOŻLIWE SKUTKI", "POSSIBLE CONSEQUENCES"), "", consequences])
+        steps = solution.get("steps") or []
+        if steps:
+            lines.extend(["", L("CO NALEŻY ZROBIĆ", "WHAT TO DO"), ""])
+            for index, step in enumerate(steps, 1):
+                lines.append("%d. %s" % (index, step))
+        restart = solution.get("restart")
+        if restart:
+            lines.extend(["", L("RESTART", "RESTART"), "", restart])
+        action = solution.get("action")
+        if action:
+            lines.extend(["", L("BEZPIECZNE DZIAŁANIE", "SAFE ACTION"), "", L("Zielony przycisk: %s", "Green button: %s") % solution.get("action_label", L("Wykonaj działanie", "Run action"))])
+        elif (item or {}).get("status") in (STATUS_WARN, STATUS_ERROR):
+            lines.extend(["", L("DZIAŁANIE AUTOMATYCZNE", "AUTOMATIC ACTION"), "", L("Dla tego wyniku nie ma bezpiecznej automatycznej naprawy. Wykonaj podane kroki ręcznie.", "No safe automatic repair is available for this result. Follow the instructions manually.")])
+    else:
+        if (item or {}).get("status") in (STATUS_OK, STATUS_INFO):
+            lines.extend(["", L("Nie wykryto problemu wymagającego naprawy.", "No problem requiring repair was detected.")])
+        else:
+            lines.extend(["", L("Brak gotowej instrukcji dla tego wyniku. Zapisz raport i sprawdź dane techniczne.", "No ready-made instructions are available for this result. Save a report and review the technical data.")])
+    if include_technical:
+        lines.extend(["", L("DANE TECHNICZNE", "TECHNICAL DATA"), "", shown.get("details", L("Brak danych technicznych.", "No technical data."))])
+    return "\n".join(lines)
+
+
+_make_report_pl_23 = make_report
+
+def make_report(results):
+    if not is_english():
+        return _make_report_pl_23(results)
+    now = datetime.datetime.now()
+    path = os.path.join(choose_writable_report_dir(), "E2Doctor_Report_%s.txt" % now.strftime("%Y%m%d_%H%M%S"))
+    distro, version, build = get_image_info()
+    lines = [
+        "E2 Doctor diagnostic report", "Created: %s" % now.strftime("%Y-%m-%d %H:%M:%S"),
+        "Plug-in version: %s" % PLUGIN_VERSION, "Author: %s" % PLUGIN_AUTHOR,
+        "System: %s %s" % (distro, version), "Build: %s" % (build or "unknown"),
+        "Python: %s" % sys.version.replace("\n", " "),
+        "Architecture: %s" % (os.uname().machine if hasattr(os, "uname") else "unknown"), "",
+        "NOTICE: The report does not contain passwords, OSCam server lines or the complete settings file.", "",
+    ]
+    for item in results:
+        shown = translated_item(item)
+        lines.extend(["=" * 72, "%s %s" % (status_prefix(item.get("status")), shown.get("title")), shown.get("summary"), "-" * 72, shown.get("details")])
+        if item.get("status") in (STATUS_WARN, STATUS_ERROR) and item.get("solution_id"):
+            lines.extend(["", "POSSIBLE SOLUTION", "-" * 72, build_solution_text(item, include_technical=False)])
+        lines.append("")
+    code, uptime, _ = run_command("uptime", timeout=3)
+    if code == 0:
+        lines.extend(["=" * 72, "System uptime", uptime, ""])
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(lines))
+    return path
+
+
+_ACTION_EN_23 = {
+    "safe_flash_cleanup": ("Safely clean flash", "Remove only old crashlogs, OPKG archives and memory dumps. Enigma2 settings and data remain unchanged.", "Clean flash"),
+    "find_large_files": ("Show largest files", "Find the files using the most space without deleting them.", "Large files"),
+    "safe_ram_refresh": ("Safely refresh RAM", "Write pending data and release only kernel cache. Processes and configuration are not stopped.", "Refresh RAM"),
+    "show_processes": ("Show RAM-consuming processes", "Check which processes use the most memory. Nothing will be terminated.", "RAM processes"),
+    "repair_bouquet_refs": ("Repair bouquet references", "Back up the index files and remove only entries pointing to missing bouquets.", "Repair bouquets"),
+    "reload_bouquets": ("Reload channel list", "Refresh channel lists without deleting bouquets, tuner settings or other configuration.", "Reload list"),
+    "remove_opkg_lock": ("Remove inactive OPKG lock", "Remove the lock only when the package manager is not running.", "Remove lock"),
+    "restart_oscam": ("Restart OSCam", "Find the correct system script and safely restart the service.", "Restart OSCam"),
+    "sync_time": ("Synchronise date and time", "Start the time-synchronisation mechanism available in the image.", "Synchronise time"),
+    "network_test": ("Run extended network test", "Check the interface, IP address, gateway, DNS and HTTPS without changing configuration.", "Network test"),
+    "disable_suspect_plugin": ("Temporarily disable suspected plug-in", "Rename the plug-in directory without deleting it. The change can be reverted.", "Disable plug-in"),
+    "cleanup_crashlogs": ("Remove old crashlogs", "Keep the three latest logs required for further diagnostics.", "Remove old logs"),
+    "emergency_report": ("Create emergency report", "Save a report that can be sent to a support person.", "Emergency report"),
+    "storage_diagnostic": ("Show storage diagnostics", "Display mounts, free space and recent kernel messages without repairing the filesystem.", "Diagnostics"),
+    "restart_gui": ("Restart Enigma2 GUI", "Close and restart Enigma2. Recordings and running operations may be interrupted.", "Restart GUI"),
+}
+
+
+def action_title(action_name):
+    if is_english() and action_name in _ACTION_EN_23:
+        return _ACTION_EN_23[action_name][0]
+    return ACTION_REGISTRY.get(action_name, {}).get("title", action_name)
+
+
+def action_description(action_name):
+    if is_english() and action_name in _ACTION_EN_23:
+        return _ACTION_EN_23[action_name][1]
+    return ACTION_REGISTRY.get(action_name, {}).get("description", "")
+
+
+def action_button_label(action_name):
+    if is_english() and action_name in _ACTION_EN_23:
+        return _ACTION_EN_23[action_name][2]
+    labels = {
+        "safe_flash_cleanup": "Oczyść flash", "find_large_files": "Duże pliki", "safe_ram_refresh": "Odśwież RAM",
+        "show_processes": "Procesy RAM", "repair_bouquet_refs": "Napraw bukiety", "reload_bouquets": "Przeładuj listę",
+        "remove_opkg_lock": "Usuń blokadę", "restart_oscam": "Restart OSCam", "sync_time": "Synchronizuj czas",
+        "network_test": "Test sieci", "disable_suspect_plugin": "Wyłącz wtyczkę", "cleanup_crashlogs": "Usuń stare logi",
+        "emergency_report": "Raport awaryjny", "storage_diagnostic": "Diagnostyka", "restart_gui": "Restart GUI",
+    }
+    return labels.get(action_name, action_title(action_name))
+
+
+# Localised confirmation and action output.
+def _request_action_23(self, action_name, item=None, on_done=None):
+    self._e2d_pending_action = action_name
+    self._e2d_pending_item = item or {}
+    self._e2d_pending_done = on_done
+    if action_name == "safe_flash_cleanup":
+        preview, entries, total = safe_flash_cleanup_preview()
+        self._e2d_flash_entries = entries
+        if not entries:
+            self.session.open(E2DoctorTextScreen, L("Bezpieczne czyszczenie flash", "Safe flash cleanup"), preview, L("Brak plików do usunięcia", "No files to remove"))
+            return
+        text = L(
+            "E2 Doctor znalazł %d bezpiecznych plików o łącznym rozmiarze %s.\n\nUsunięte zostaną wyłącznie stare crashlogi, archiwa OPKG i zrzuty pamięci. Ustawienia, listy kanałów, wtyczki, EPG i picony pozostaną bez zmian.\n\nKontynuować?",
+            "E2 Doctor found %d safe files with a total size of %s.\n\nOnly old crashlogs, OPKG archives and memory dumps will be removed. Settings, channel lists, plug-ins, EPG and picons will remain unchanged.\n\nContinue?"
+        ) % (len(entries), format_bytes(total))
+        self.session.openWithCallback(self._confirmed_action, MessageBox, text, MessageBox.TYPE_YESNO)
+        return
+    confirmations = {
+        "safe_ram_refresh": L("Bezpiecznie odświeżyć pamięć podręczną RAM?\n\nProcesy nie zostaną zakończone, a ustawienia nie zostaną zmienione.", "Safely refresh the RAM cache?\n\nProcesses will not be terminated and settings will not be changed."),
+        "repair_bouquet_refs": L("Naprawić brakujące odwołania do bukietów?\n\nPrzed zmianą E2 Doctor utworzy kopię plików indeksu w /etc/enigma2.", "Repair missing bouquet references?\n\nE2 Doctor will back up the index files in /etc/enigma2 before making changes."),
+        "remove_opkg_lock": L("Usunąć nieaktywną blokadę OPKG?", "Remove the inactive OPKG lock?"),
+        "restart_oscam": L("Uruchomić ponownie OSCam?", "Restart OSCam?"),
+        "sync_time": L("Spróbować zsynchronizować datę i czas systemowy?", "Try to synchronise the system date and time?"),
+        "disable_suspect_plugin": L("Tymczasowo wyłączyć podejrzaną wtyczkę %s?\n\nKatalog zostanie jedynie przemianowany. Operację można cofnąć w Narzędziach E2 Doctor.", "Temporarily disable the suspected plug-in %s?\n\nIts directory will only be renamed. The operation can be reverted in E2 Doctor Tools.") % (item or {}).get("context", {}).get("plugin", ""),
+        "cleanup_crashlogs": L("Usunąć stare crashlogi i pozostawić trzy najnowsze?", "Remove old crashlogs and keep the three newest?"),
+        "reload_bouquets": L("Przeładować listę kanałów bez usuwania ustawień i bukietów?", "Reload the channel list without removing settings or bouquets?"),
+        "restart_gui": L("Uruchomić ponownie GUI Enigma2?\n\nPrzed wykonaniem zakończ trwające nagrania i ważne operacje.", "Restart the Enigma2 GUI?\n\nFinish active recordings and important operations first."),
+    }
+    if action_name in confirmations:
+        self.session.openWithCallback(self._confirmed_action, MessageBox, confirmations[action_name], MessageBox.TYPE_YESNO)
+    else:
+        self._execute_pending_action()
+
+
+E2DoctorActionMixin.request_action = _request_action_23
+_old_show_action_message_23 = E2DoctorActionMixin._show_action_message
+_old_open_action_text_23 = E2DoctorActionMixin._open_action_text
+
+def _show_action_message_23(self, message, changed=False, error=False):
+    return _old_show_action_message_23(self, translate_text(message), changed, error)
+
+def _open_action_text_23(self, title, text, status="E2 Doctor 2.3"):
+    return _old_open_action_text_23(self, translate_text(title), translate_text(text), translate_text(status))
+
+E2DoctorActionMixin._show_action_message = _show_action_message_23
+E2DoctorActionMixin._open_action_text = _open_action_text_23
+
+
+MODULE_TEXT_23 = {
+    "repair": ("Centrum szybkiej naprawy", "Quick Repair Centre", "Działania bezpieczne dopasowane do wykrytych problemów", "Safe actions matched to detected problems"),
+    "problems": ("Najważniejsze problemy", "Priority problems", "Najważniejsze alerty wymagające uwagi użytkownika", "The most important alerts requiring attention"),
+    "system": ("System i wydajność", "System and performance", "Flash, RAM, CPU, temperatura i stan pracy tunera", "Flash, RAM, CPU, temperature and receiver health"),
+    "crashlogs": ("Analizator crashlogów", "Crashlog analyser", "Analiza crashlogów, wskazanie błędu i źródła problemu", "Crashlog analysis, error location and likely source"),
+    "network": ("Sieć i internet", "Network and internet", "Adresacja, DNS, brama i połączenie HTTPS", "Addressing, DNS, gateway and HTTPS connection"),
+    "channels": ("Listy kanałów", "Channel lists", "Bukiety, lamedb, indeksy i brakujące odwołania", "Bouquets, lamedb, indexes and missing references"),
+    "tuners": ("Głowice i sygnał", "Tuners and signal", "Wykryte głowice, konfiguracja i bieżący LOCK", "Detected tuners, configuration and current LOCK"),
+    "storage": ("Nośniki i systemy plików", "Storage and filesystems", "Nośniki, miejsce, montowanie i bezpieczeństwo zapisu", "Devices, free space, mounts and write safety"),
+    "packages": ("Pakiety OPKG", "OPKG packages", "Kontrola OPKG, zależności i niepełne instalacje", "OPKG status, dependencies and incomplete installations"),
+    "oscam": ("OSCam", "OSCam", "Stan procesu, konfiguracja i szybki restart OSCam", "Process state, configuration and quick restart"),
+    "media": ("EPG i picony", "EPG and picons", "EPG, picony i podstawowa poprawność danych", "EPG, picons and basic data integrity"),
+    "history": ("Historia stanu dekodera", "Receiver health history", "Porównanie skanów i wykrywanie zmian w systemie", "Scan comparison and system-change detection"),
+    "py3": ("Zgodność wtyczek z Python 3", "Python 3 compatibility", "Skan zgodności wtyczek z Pythonem 3", "Plug-in compatibility scan for Python 3"),
+    "ipk": ("E2 Safe Installer", "E2 Safe Installer", "Analiza paczek IPK przed instalacją", "Analyse IPK packages before installation"),
+    "tools": ("Bezpieczne narzędzia", "Safe tools", "Narzędzia ręczne, raport i cofanie zmian", "Manual tools, reports and rollback"),
+    "update": ("Aktualizacja z GitHub", "GitHub update", "Sprawdź nową wersję i wykonaj aktualizację z GitHub", "Check for a new version and update from GitHub"),
+}
+
+
+def module_title_23(key):
+    values = MODULE_TEXT_23.get(key, (key, key, "", ""))
+    return values[1] if is_english() else values[0]
+
+
+def module_hint_23(key):
+    values = MODULE_TEXT_23.get(key, (key, key, "", ""))
+    return values[3] if is_english() else values[2]
+
+
+def module_badge(results, key):
+    if key == "update":
+        return STATUS_INFO, L("AKTUALIZUJ", "UPDATE")
+    if key == "repair":
+        count = len(quick_repair_entries(results))
+        if not results:
+            return STATUS_INFO, L("SKAN", "SCAN")
+        if count:
+            return STATUS_WARN, L("%d AKCJI", "%d ACTIONS") % count
+        return STATUS_OK, L("GOTOWE", "READY")
+    selected = module_results(results, key)
+    if key in ("history", "py3", "ipk", "tools"):
+        return STATUS_INFO, L("OTWÓRZ", "OPEN")
+    if key == "problems" and not selected and results:
+        return STATUS_OK, L("BRAK", "NONE")
+    if not selected:
+        return STATUS_INFO, L("BRAK", "NONE")
+    errors = len([item for item in selected if item.get("status") == STATUS_ERROR])
+    warnings = len([item for item in selected if item.get("status") == STATUS_WARN])
+    if errors:
+        if is_english():
+            return STATUS_ERROR, "%d ERROR%s" % (errors, "" if errors == 1 else "S")
+        return STATUS_ERROR, ("%d BŁĄD" % errors) if errors == 1 else ("%d BŁĘDY" % errors if errors <= 4 else "%d BŁĘDÓW" % errors)
+    if warnings:
+        return STATUS_WARN, L("%d OSTRZ.", "%d WARN.") % warnings
+    return STATUS_OK, "OK"
+
+
+def module_subtitle(results, key, default=""):
+    if key == "repair":
+        count = len(quick_repair_entries(results))
+        if count:
+            return L("Dostępne bezpieczne działania: %d", "%d safe actions available") % count
+        return L("Brak wymaganych działań", "No actions required")
+    selected = module_results(results, key)
+    problematic = [item for item in selected if item.get("status") in (STATUS_ERROR, STATUS_WARN)]
+    if problematic:
+        problematic.sort(key=lambda item: STATUS_RANK.get(item.get("status"), 0), reverse=True)
+        return translate_text(problematic[0].get("summary", module_hint_23(key)))
+    return module_hint_23(key)
+
+
+def dashboard_recommendation(results):
+    if not results:
+        return L("GOTOWY: uruchom pełny skan, aby E2 Doctor przygotował zalecenia i bezpieczne działania.", "READY: run a full scan so E2 Doctor can prepare recommendations and safe actions.")
+    problems = [item for item in results if item.get("status") in (STATUS_ERROR, STATUS_WARN)]
+    problems.sort(key=lambda item: STATUS_RANK.get(item.get("status"), 0), reverse=True)
+    if problems:
+        item = translated_item(problems[0])
+        count = len(quick_repair_entries(results))
+        return L("PRIORYTET: %s — %s | Centrum naprawy: %d działań", "PRIORITY: %s — %s | Repair centre: %d actions") % (item.get("title", ""), item.get("summary", ""), count)
+    return L("SYSTEM W DOBREJ KONDYCJI: nie wykryto błędów ani ostrzeżeń wymagających działania.", "SYSTEM HEALTHY: no errors or warnings requiring action were detected.")
+
+
+def compare_snapshots(current, previous):
+    if not current or not previous:
+        return L("To pierwszy zapisany skan E2 Doctor.", "This is the first saved E2 Doctor scan.")
+    current_map = {x.get("key"): x for x in current.get("issues", [])}
+    previous_map = {x.get("key"): x for x in previous.get("issues", [])}
+    new_items, resolved, worsened = [], [], []
+    for key, item in current_map.items():
+        old = previous_map.get(key)
+        if old is None:
+            new_items.append(item)
+        elif STATUS_RANK.get(item.get("status"), 0) > STATUS_RANK.get(old.get("status"), 0):
+            worsened.append(item)
+    for key, item in previous_map.items():
+        if key not in current_map:
+            resolved.append(item)
+    diff = int(current.get("score", 0)) - int(previous.get("score", 0))
+    lines = [L("Zmiana wyniku: %+d pkt", "Score change: %+d pts") % diff]
+    if new_items:
+        lines.append(L("Nowe problemy: %s", "New problems: %s") % ", ".join(translate_text(x.get("title", "")) for x in new_items[:4]))
+    if worsened:
+        lines.append(L("Pogorszenie: %s", "Worsened: %s") % ", ".join(translate_text(x.get("title", "")) for x in worsened[:4]))
+    if resolved:
+        lines.append(L("Rozwiązane: %s", "Resolved: %s") % ", ".join(translate_text(x.get("title", "")) for x in resolved[:4]))
+    if not new_items and not worsened and not resolved:
+        lines.append(L("Nie wykryto zmian w problemach.", "No changes in detected problems."))
+    return " | ".join(lines)
+
+
+def current_change_summary(results):
+    history = load_history()
+    current = compact_snapshot(results)
+    previous = None
+    if history:
+        if snapshot_signature(history[0]) == snapshot_signature(current) and len(history) > 1:
+            previous = history[1]
+        else:
+            previous = history[0]
+    return compare_snapshots(current, previous)
+
+
+# Correctly sized icons: Enigma2 MultiContent clips pixmaps instead of scaling them.
+MODULE_ICONS_23 = {}
+if LoadPixmap is not None:
+    _icon_set = "fhd" if E2D_FHD else "hd"
+    for _key in MODULE_TEXT_23.keys():
+        _path = os.path.join(PLUGIN_PATH, "icons", _icon_set, "%s.png" % _key)
+        try:
+            MODULE_ICONS_23[_key] = LoadPixmap(cached=True, path=_path) if os.path.exists(_path) else None
+        except Exception:
+            MODULE_ICONS_23[_key] = None
+
+
+class E2DoctorDashboardList(MenuList):
+    def __init__(self, entries=None):
+        MenuList.__init__(self, entries or [], enableWrapAround=True, content=eListboxPythonMultiContent)
+        self.l.setFont(0, gFont("Regular", 18 if E2D_FHD else 14))
+        self.l.setFont(1, gFont("Regular", E2D_FONT_TITLE))
+        self.l.setFont(2, gFont("Regular", E2D_FONT_SMALL))
+        self.l.setFont(3, gFont("Regular", E2D_FONT_TINY))
+        self.l.setFont(4, gFont("Regular", 20 if E2D_FHD else 15))
+        self.l.setItemHeight(92 if E2D_FHD else 72)
+        self.l.setBuildFunc(self.build_entry)
+
+    def build_entry(self, key, code, title, subtitle, status, badge):
+        status_color = STATUS_COLORS.get(status, 0x008A9AA5)
+        item_h = 92 if E2D_FHD else 72
+        content_w = E2D_LIST_W
+        icon_size = 54 if E2D_FHD else 42
+        icon_box = 84 if E2D_FHD else 66
+        badge_w = 180 if E2D_FHD else 142
+        title_x = icon_box + 24
+        text_w = content_w - title_x - badge_w - 26
+        icon = MODULE_ICONS_23.get(key)
+        short_note = {
+            STATUS_OK: L("Bez działania", "No action"),
+            STATUS_INFO: L("Otwórz moduł", "Open module"),
+            STATUS_WARN: L("Sprawdź zalecenia", "Review advice"),
+            STATUS_ERROR: L("Wymaga działania", "Action required"),
+        }.get(status, "")
+        entries = [
+            None,
+            MultiContentEntryText(pos=(0, 4), size=(content_w, item_h - 8), font=2, text="", backcolor=0x00122029, backcolor_sel=0x00223E4D),
+            MultiContentEntryText(pos=(0, 4), size=(6, item_h - 8), font=2, text="", backcolor=status_color, backcolor_sel=status_color),
+            MultiContentEntryText(pos=(18, 14 if E2D_FHD else 11), size=(icon_box, item_h - (28 if E2D_FHD else 22)), font=4, flags=RT_HALIGN_CENTER | RT_VALIGN_CENTER, text="", backcolor=0x00193342, backcolor_sel=0x0028495A),
+            MultiContentEntryText(pos=(title_x, 10 if E2D_FHD else 8), size=(text_w, 22), font=0, flags=RT_HALIGN_LEFT | RT_VALIGN_CENTER, text=code + L("  •  MODUŁ", "  •  MODULE"), color=0x0078DCE4, color_sel=0x0096ECF2, backcolor_sel=0x00223E4D),
+            MultiContentEntryText(pos=(title_x, 28 if E2D_FHD else 21), size=(text_w, 34), font=1, flags=RT_HALIGN_LEFT | RT_VALIGN_CENTER, text=title, color=0x00FFFFFF, color_sel=0x00FFFFFF, backcolor_sel=0x00223E4D),
+            MultiContentEntryText(pos=(title_x, 58 if E2D_FHD else 46), size=(text_w, 22), font=3, flags=RT_HALIGN_LEFT | RT_VALIGN_CENTER, text=subtitle, color=0x009BB2BD, color_sel=0x00D8E8EE, backcolor_sel=0x00223E4D),
+            MultiContentEntryText(pos=(content_w - badge_w - 18, 18 if E2D_FHD else 12), size=(badge_w, item_h - (36 if E2D_FHD else 24)), font=4, flags=RT_HALIGN_CENTER | RT_VALIGN_CENTER, text="", backcolor=0x00142B35, backcolor_sel=0x00193442),
+            MultiContentEntryText(pos=(content_w - badge_w - 18, 26 if E2D_FHD else 18), size=(badge_w, 24), font=2, flags=RT_HALIGN_CENTER | RT_VALIGN_CENTER, text=badge, color=status_color, color_sel=status_color, backcolor_sel=0x00193442),
+            MultiContentEntryText(pos=(content_w - badge_w - 18, 50 if E2D_FHD else 39), size=(badge_w, 18), font=3, flags=RT_HALIGN_CENTER | RT_VALIGN_CENTER, text=short_note, color=0x00C0CCD4, color_sel=0x00FFFFFF, backcolor_sel=0x00193442),
+        ]
+        if icon is not None and MultiContentEntryPixmapAlphaBlend is not None:
+            entries.append(MultiContentEntryPixmapAlphaBlend(pos=(18 + int((icon_box - icon_size) / 2), 14 if E2D_FHD else 11), size=(icon_size, icon_size), png=icon))
+        else:
+            entries.append(MultiContentEntryText(pos=(18, 14 if E2D_FHD else 11), size=(icon_box, item_h - (28 if E2D_FHD else 22)), font=4, flags=RT_HALIGN_CENTER | RT_VALIGN_CENTER, text=code, color=0x00FFFFFF, color_sel=0x00FFFFFF, backcolor_sel=0x0028495A))
+        return entries
+
+
+# Main dashboard language-aware methods.
+_old_dashboard_init_23 = E2DoctorDashboard.__init__
+
+def _apply_dashboard_language_23(self):
+    self.settings = load_e2doctor_settings()
+    self["brand_badge"].setText(L("INTELIGENTNA DIAGNOSTYKA  •  BEZPIECZNA NAPRAWA  •  STAŁA OPIEKA", "SMART DIAGNOSTICS  •  SAFE REPAIR  •  LIVE CARE"))
+    self["subtitle"].setText(L("Centrum diagnostyki i bezpiecznej naprawy Enigma2", "Enigma2 diagnostics and safe repair centre"))
+    self["score_title"].setText(L("KONDYCJA TUNERA", "RECEIVER HEALTH"))
+    self["ok_label"].setText(L("POPRAWNE", "PASSED"))
+    self["info_label"].setText(L("INFORMACJE", "INFORMATION"))
+    self["warn_label"].setText(L("OSTRZEŻENIA", "WARNINGS"))
+    self["error_label"].setText(L("BŁĘDY", "ERRORS"))
+    self["key_red"].setText(L("Skanuj", "Scan"))
+    self["key_green"].setText(L("Otwórz / napraw", "Open / repair"))
+    self["key_yellow"].setText(L("Raport", "Report"))
+    self["key_blue"].setText(L("Wyjście", "Exit"))
+    self["footer"].setText(L(
+        "E2 Doctor %s  •  by %s  •  %s  •  0: aktualizacja  •  MENU: ustawienia",
+        "E2 Doctor %s  •  by %s  •  %s  •  0: update  •  MENU: settings"
+    ) % (PLUGIN_VERSION, PLUGIN_AUTHOR, PLUGIN_EMAIL))
+    if not self.results:
+        self["score_grade"].setText(L("BRAK SKANU", "NOT SCANNED"))
+        self["change"].setText(L("Gotowy do pełnej kontroli tunera", "Ready for a full receiver check"))
+        self["recommendation"].setText(dashboard_recommendation([]))
+    else:
+        self.update_summary()
+    self.refresh_dashboard()
+
+
+def _dashboard_init_23(self, session):
+    _old_dashboard_init_23(self, session)
+    _apply_dashboard_language_23(self)
+
+
+def _dashboard_refresh_23(self):
+    rows = []
+    for key, code, _title, _default_subtitle in DASHBOARD_MODULES:
+        status, badge = module_badge(self.results, key)
+        rows.append((key, code, module_title_23(key), module_subtitle(self.results, key), status, badge))
+    self["dashboard"].setList(rows)
+
+
+def _dashboard_update_summary_23(self, change_text=None):
+    counts = result_counts(self.results)
+    score = calculate_health_score(self.results)
+    self["score_value"].setText("%d/100" % score)
+    self["score_grade"].setText(health_grade(score))
+    self["score_bar"].setValue(score)
+    self["ok_count"].setText(str(counts.get(STATUS_OK, 0)))
+    self["info_count"].setText(str(counts.get(STATUS_INFO, 0)))
+    self["warn_count"].setText(str(counts.get(STATUS_WARN, 0)))
+    self["error_count"].setText(str(counts.get(STATUS_ERROR, 0)))
+    self["change"].setText(translate_text(change_text) if change_text else current_change_summary(self.results))
+    self["recommendation"].setText(dashboard_recommendation(self.results))
+
+
+def _dashboard_scan_23(self):
+    self["change"].setText(L("Trwa pełna diagnostyka systemu...", "Running full system diagnostics..."))
+    self["recommendation"].setText(L("ANALIZA: sprawdzanie systemu, sieci, list, głowic, nośników, OPKG i crashlogów...", "ANALYSIS: checking system, network, channel lists, tuners, storage, OPKG and crashlogs..."))
+    try:
+        previous_history = load_history()
+        self.results = run_all_checks(self.session)
+        current = compact_snapshot(self.results)
+        previous = previous_history[0] if previous_history else None
+        change_text = compare_snapshots(current, previous)
+        save_history_snapshot(self.results)
+        self.update_summary(change_text)
+        self.refresh_dashboard()
+    except Exception as error:
+        self["change"].setText(L("Błąd diagnostyki: %s", "Diagnostic error: %s") % error)
+        self["recommendation"].setText(L("Diagnostyka nie została ukończona. Otwórz raport błędu.", "Diagnostics did not complete. Open the error report."))
+        self.session.open(MessageBox, L("Diagnostyka nie powiodła się:\n%s\n\n%s", "Diagnostics failed:\n%s\n\n%s") % (error, traceback.format_exc()), MessageBox.TYPE_ERROR)
+
+
+def _dashboard_first_show_23(self):
+    if self._scan_started:
+        return
+    self._scan_started = True
+    self.settings = load_e2doctor_settings()
+    _apply_dashboard_language_23(self)
+    if self.settings.get("auto_scan", True):
+        self.scan()
+    else:
+        self["change"].setText(L("Automatyczny skan jest wyłączony. Naciśnij czerwony przycisk.", "Automatic scanning is disabled. Press the red button."))
+
+
+def _dashboard_open_selected_23(self):
+    key = self.selected_key()
+    if not key:
+        return
+    if key == "update":
+        self.open_update()
+        return
+    if key == "repair":
+        if not self.results:
+            self.scan()
+        self.session.openWithCallback(self.repair_closed, E2DoctorQuickRepairScreen, self.results)
+    elif key == "history":
+        self.session.open(E2DoctorHistoryScreen)
+    elif key == "py3":
+        self["change"].setText(L("Trwa skanowanie zgodności wtyczek z Pythonem 3...", "Scanning plug-ins for Python 3 compatibility..."))
+        try:
+            report = python3_compatibility_report()
+            self.session.open(E2DoctorTextScreen, L("Zgodność z Pythonem 3", "Python 3 compatibility"), report, L("Analiza bez modyfikowania plików", "Analysis without modifying files"))
+        except Exception as error:
+            self.session.open(MessageBox, L("Skan zgodności nie powiódł się:\n%s", "Compatibility scan failed:\n%s") % error, MessageBox.TYPE_ERROR)
+        finally:
+            self["change"].setText(current_change_summary(self.results) if self.results else L("Gotowy", "Ready"))
+    elif key == "ipk":
+        self.session.open(E2DoctorIPKBrowser)
+    elif key == "tools":
+        self.open_tools()
+    else:
+        if not self.results:
+            self.scan()
+        selected = module_results(self.results, key)
+        if not selected:
+            self.session.open(MessageBox, L("Brak wyników dla wybranego modułu.", "No results are available for the selected module."), MessageBox.TYPE_INFO, timeout=5)
+            return
+        self.session.openWithCallback(self.results_closed, E2DoctorResultsScreen, module_title_23(key), selected)
+
+
+def _dashboard_save_report_23(self):
+    if not self.results:
+        self.scan()
+    if not self.results:
+        return
+    try:
+        path = make_report(self.results)
+        self.session.open(MessageBox, L("Raport zapisano w:\n%s", "Report saved to:\n%s") % path, MessageBox.TYPE_INFO, timeout=9)
+    except Exception as error:
+        self.session.open(MessageBox, L("Nie udało się utworzyć raportu:\n%s", "The report could not be created:\n%s") % error, MessageBox.TYPE_ERROR)
+
+
+def _dashboard_settings_closed_23(self, changed=False):
+    if changed:
+        self.settings = load_e2doctor_settings()
+        _apply_dashboard_language_23(self)
+
+
+E2DoctorDashboard.__init__ = _dashboard_init_23
+E2DoctorDashboard.refresh_dashboard = _dashboard_refresh_23
+E2DoctorDashboard.update_summary = _dashboard_update_summary_23
+E2DoctorDashboard.scan = _dashboard_scan_23
+E2DoctorDashboard.first_show = _dashboard_first_show_23
+E2DoctorDashboard.open_selected = _dashboard_open_selected_23
+E2DoctorDashboard.save_report = _dashboard_save_report_23
+E2DoctorDashboard.settings_closed = _dashboard_settings_closed_23
+
+
+class E2DoctorTextScreen(Screen):
+    skin = premium_text_skin("E2DoctorTextScreen")
+    def __init__(self, session, title, text, status="E2 Doctor 2.3"):
+        Screen.__init__(self, session)
+        self["header_bg"] = Label("")
+        self["accent"] = Label("")
+        self["footer_bg"] = Label("")
+        self["title"] = Label(translate_text(title))
+        self["status"] = Label(translate_text(status))
+        self["body"] = ScrollLabel(translate_text(text))
+        self["key_red"] = StaticText(L("Wróć", "Back"))
+        self["key_green"] = StaticText("")
+        self["key_yellow"] = StaticText("")
+        self["key_blue"] = StaticText(L("Wyjście", "Exit"))
+        self["actions"] = ActionMap(["OkCancelActions", "ColorActions", "DirectionActions"], {
+            "cancel": self.close, "red": self.close, "blue": self.close, "ok": self.close,
+            "up": self["body"].pageUp, "down": self["body"].pageDown,
+            "left": self["body"].pageUp, "right": self["body"].pageDown,
+        }, -1)
+
+
+class E2DoctorProblemActionsScreen(E2DoctorActionMixin, Screen):
+    skin = premium_results_skin("E2DoctorProblemActionsScreen")
+    def __init__(self, session, item, title=None):
+        Screen.__init__(self, session)
+        self.item = item or {}
+        self.changed = False
+        self.actions_list = available_problem_actions(self.item)
+        for name in ("header_bg", "accent", "footer_bg"):
+            self[name] = Label("")
+        self["title"] = Label(title or L("Działania dla problemu", "Actions for this problem"))
+        self["status"] = Label(L("Wybierz działanie. Każda zmiana wymaga potwierdzenia.", "Select an action. Every change requires confirmation."))
+        rows = [(ACTION_REGISTRY.get(action, {}).get("status", STATUS_INFO), action_title(action), action_description(action)) for action in self.actions_list]
+        if not rows:
+            rows.append((STATUS_INFO, L("Brak bezpiecznych działań", "No safe actions"), L("Dla tego problemu dostępna jest wyłącznie instrukcja ręczna.", "Only manual instructions are available for this problem.")))
+        self["list"] = E2DoctorV2ResultList(rows)
+        self["key_red"] = StaticText(L("Wróć", "Back"))
+        self["key_green"] = StaticText(L("Wykonaj", "Run"))
+        self["key_yellow"] = StaticText(L("Opis", "Description"))
+        self["key_blue"] = StaticText(L("Wyjście", "Exit"))
+        self["actions"] = ActionMap(["OkCancelActions", "ColorActions"], {
+            "cancel": self.finish, "red": self.finish, "blue": self.finish,
+            "ok": self.execute_selected, "green": self.execute_selected, "yellow": self.show_selected,
+        }, -1)
+    def selected_action(self):
+        index = self["list"].getSelectedIndex()
+        return self.actions_list[index] if 0 <= index < len(self.actions_list) else None
+    def show_selected(self):
+        action = self.selected_action()
+        if action:
+            self.session.open(E2DoctorTextScreen, action_title(action), action_description(action), L("Podgląd działania — nic nie zostało wykonane", "Action preview — nothing has been executed"))
+    def execute_selected(self):
+        action = self.selected_action()
+        if action:
+            self.request_action(action, self.item, self.action_finished)
+    def action_finished(self, changed=False):
+        self.changed = self.changed or bool(changed)
+    def finish(self):
+        self.close(self.changed)
+
+
+class E2DoctorSolutionScreen(E2DoctorActionMixin, Screen):
+    skin = premium_text_skin("E2DoctorSolutionScreen")
+    def __init__(self, session, item):
+        Screen.__init__(self, session)
+        self.item = item
+        self.actions_list = available_problem_actions(item)
+        self.primary_action = self.actions_list[0] if self.actions_list else None
+        for name in ("header_bg", "accent", "footer_bg"):
+            self[name] = Label("")
+        self["title"] = Label(L("Diagnoza i możliwe rozwiązanie", "Diagnosis and possible solution"))
+        self["status"] = Label("%s — %s" % (status_name(item.get("status")), translate_text(item.get("title", ""))))
+        self["body"] = ScrollLabel(build_solution_text(item, include_technical=False))
+        self["key_red"] = StaticText(L("Wróć", "Back"))
+        self["key_green"] = StaticText(action_button_label(self.primary_action) if self.primary_action else L("Brak auto-naprawy", "No auto-repair"))
+        self["key_yellow"] = StaticText(L("Dane techniczne", "Technical data"))
+        self["key_blue"] = StaticText(L("Działania", "Actions") if self.actions_list else L("Zapisz instrukcję", "Save instructions"))
+        self["actions"] = ActionMap(["OkCancelActions", "ColorActions", "DirectionActions", "InfoActions", "MenuActions"], {
+            "cancel": self.close, "red": self.close, "green": self.perform_primary,
+            "yellow": self.show_technical, "blue": self.open_actions_or_save,
+            "info": self.save_instruction, "menu": self.save_instruction,
+            "up": self["body"].pageUp, "down": self["body"].pageDown,
+            "left": self["body"].pageUp, "right": self["body"].pageDown,
+        }, -1)
+    def perform_primary(self):
+        if not self.primary_action:
+            self.session.open(MessageBox, L("Dla tego wyniku nie ma bezpiecznej automatycznej naprawy. Wykonaj podane kroki ręcznie.", "No safe automatic repair is available for this result. Follow the instructions manually."), MessageBox.TYPE_INFO, timeout=7)
+            return
+        self.request_action(self.primary_action, self.item, self.primary_finished)
+    def primary_finished(self, changed=False):
+        if changed:
+            self.close(True)
+    def open_actions_or_save(self):
+        if self.actions_list:
+            self.session.openWithCallback(self.actions_closed, E2DoctorProblemActionsScreen, self.item)
+        else:
+            self.save_instruction()
+    def actions_closed(self, changed=False):
+        if changed:
+            self.close(True)
+    def show_technical(self):
+        self.session.open(E2DoctorTextScreen, L("Dane techniczne — %s", "Technical data — %s") % translate_text(self.item.get("title", "")), self.item.get("details", L("Brak danych technicznych.", "No technical data.")), L("Surowe dane diagnostyczne", "Raw diagnostic data"))
+    def save_instruction(self):
+        try:
+            path = save_solution_instruction(self.item)
+            self.session.open(MessageBox, L("Instrukcję zapisano w:\n%s", "Instructions saved to:\n%s") % path, MessageBox.TYPE_INFO, timeout=8)
+        except Exception as error:
+            self.session.open(MessageBox, L("Nie udało się zapisać instrukcji:\n%s", "Instructions could not be saved:\n%s") % error, MessageBox.TYPE_ERROR)
+
+
+class E2DoctorResultsScreen(Screen):
+    skin = premium_results_skin("E2DoctorResultsScreen")
+    def __init__(self, session, title, results, status_text=""):
+        Screen.__init__(self, session)
+        self.results = list(results or [])
+        self.changed = False
+        for name in ("header_bg", "accent", "footer_bg"):
+            self[name] = Label("")
+        self["title"] = Label(translate_text(title))
+        counts = result_counts(self.results)
+        default_status = L("OK %d | Informacje %d | Ostrzeżenia %d | Błędy %d", "OK %d | Information %d | Warnings %d | Errors %d") % (
+            counts.get(STATUS_OK, 0), counts.get(STATUS_INFO, 0), counts.get(STATUS_WARN, 0), counts.get(STATUS_ERROR, 0))
+        self["status"] = Label(translate_text(status_text) if status_text else default_status)
+        self["list"] = E2DoctorV2ResultList([])
+        self["key_red"] = StaticText(L("Wróć", "Back"))
+        self["key_green"] = StaticText(L("Odczyt / naprawa", "Read / repair"))
+        self["key_yellow"] = StaticText(L("Raport", "Report"))
+        self["key_blue"] = StaticText(L("Wyjście", "Exit"))
+        self["actions"] = ActionMap(["OkCancelActions", "ColorActions"], {
+            "cancel": self.finish, "red": self.finish, "blue": self.finish,
+            "ok": self.open_selected, "green": self.open_selected, "yellow": self.save_report,
+        }, -1)
+        self.refresh_list()
+    def refresh_list(self):
+        self["list"].setList([(item.get("status"), translate_text(item.get("title", "")), translate_text(item.get("summary", ""))) for item in self.results])
+    def open_selected(self):
+        index = self["list"].getSelectedIndex()
+        if 0 <= index < len(self.results):
+            self.session.openWithCallback(self.solution_closed, E2DoctorSolutionScreen, self.results[index])
+    def solution_closed(self, changed=False):
+        if changed:
+            self.changed = True
+    def save_report(self):
+        try:
+            path = make_report(self.results)
+            self.session.open(MessageBox, L("Raport zapisano w:\n%s", "Report saved to:\n%s") % path, MessageBox.TYPE_INFO, timeout=9)
+        except Exception as error:
+            self.session.open(MessageBox, L("Nie udało się utworzyć raportu:\n%s", "The report could not be created:\n%s") % error, MessageBox.TYPE_ERROR)
+    def finish(self):
+        self.close(self.changed)
+
+
+class E2DoctorQuickRepairScreen(E2DoctorActionMixin, Screen):
+    skin = premium_results_skin("E2DoctorQuickRepairScreen")
+    def __init__(self, session, results):
+        Screen.__init__(self, session)
+        self.results = list(results or [])
+        self.entries = quick_repair_entries(self.results)
+        self.changed = False
+        for name in ("header_bg", "accent", "footer_bg"):
+            self[name] = Label("")
+        self["title"] = Label(L("Centrum szybkiej naprawy", "Quick Repair Centre"))
+        self["status"] = Label(L("Dostępne działania: %d | Nic nie zostanie wykonane bez potwierdzenia", "Available actions: %d | Nothing will run without confirmation") % len(self.entries))
+        rows = []
+        for entry in self.entries:
+            action = entry.get("action")
+            item = entry.get("item") or {}
+            rows.append((ACTION_REGISTRY.get(action, {}).get("status", STATUS_INFO), action_title(action), L("Problem: %s — %s", "Problem: %s — %s") % (translate_text(item.get("title", "")), translate_text(item.get("summary", "")))))
+        if not rows:
+            rows.append((STATUS_OK, L("Brak problemów wymagających bezpiecznej naprawy", "No problems require safe repair"), L("System nie zgłasza działań, które E2 Doctor może wykonać automatycznie.", "The system reports no actions that E2 Doctor can perform automatically.")))
+        self["list"] = E2DoctorV2ResultList(rows)
+        self["key_red"] = StaticText(L("Wróć", "Back"))
+        self["key_green"] = StaticText(L("Wykonaj", "Run"))
+        self["key_yellow"] = StaticText(L("Opis", "Description"))
+        self["key_blue"] = StaticText(L("Wyjście", "Exit"))
+        self["actions"] = ActionMap(["OkCancelActions", "ColorActions"], {
+            "cancel": self.finish, "red": self.finish, "blue": self.finish,
+            "ok": self.execute_selected, "green": self.execute_selected, "yellow": self.show_selected,
+        }, -1)
+    def selected_entry(self):
+        index = self["list"].getSelectedIndex()
+        return self.entries[index] if 0 <= index < len(self.entries) else None
+    def show_selected(self):
+        entry = self.selected_entry()
+        if not entry:
+            return
+        action = entry.get("action")
+        item = entry.get("item") or {}
+        text = "%s\n\n%s\n\n%s\n%s\n%s\n\n%s\n%s" % (
+            action_title(action), action_description(action), L("WYKRYTY PROBLEM", "DETECTED PROBLEM"),
+            translate_text(item.get("title", "")), translate_text(item.get("summary", "")),
+            L("Dane techniczne:", "Technical data:"), translate_text(item.get("details", "")))
+        self.session.open(E2DoctorTextScreen, L("Podgląd działania", "Action preview"), text, L("E2 Doctor nie wykonał jeszcze żadnej zmiany", "E2 Doctor has not made any changes"))
+    def execute_selected(self):
+        entry = self.selected_entry()
+        if entry:
+            self.request_action(entry.get("action"), entry.get("item"), self.action_finished)
+    def action_finished(self, changed=False):
+        self.changed = self.changed or bool(changed)
+    def finish(self):
+        self.close(self.changed)
+
+
+class E2DoctorSettingsScreen(Screen):
+    skin = premium_results_skin("E2DoctorSettingsScreen")
+    def __init__(self, session):
+        Screen.__init__(self, session)
+        self.settings = load_e2doctor_settings()
+        self.options = ["language", "auto_scan", "monitor_enabled", "monitor_interval_hours", "history_limit"]
+        for name in ("header_bg", "accent", "footer_bg"):
+            self[name] = Label("")
+        self["title"] = Label(L("Ustawienia E2 Doctor", "E2 Doctor settings"))
+        self["status"] = Label(L("Lewo / prawo zmienia wartość. Zielony zapisuje ustawienia.", "Left / right changes the value. Green saves settings."))
+        self["list"] = E2DoctorV2ResultList([])
+        self["key_red"] = StaticText(L("Anuluj", "Cancel"))
+        self["key_green"] = StaticText(L("Zapisz", "Save"))
+        self["key_yellow"] = StaticText(L("Domyślne", "Defaults"))
+        self["key_blue"] = StaticText(L("Wyjście", "Exit"))
+        self["actions"] = ActionMap(["OkCancelActions", "ColorActions", "DirectionActions"], {
+            "cancel": self.close, "red": self.close, "blue": self.close,
+            "green": self.save, "yellow": self.defaults,
+            "left": self.change_left, "right": self.change_right, "ok": self.change_right,
+        }, -1)
+        self.refresh()
+    def option_text(self, key):
+        if key == "language":
+            value = self.settings.get("language", "auto")
+            if value == "pl":
+                shown = "Polski"
+            elif value == "en":
+                shown = "English"
+            else:
+                shown = L("Automatycznie — język systemu", "Automatic — system language") + " (%s)" % ("Polski" if _system_language_code() == "pl" else "English")
+            return L("Język wtyczki", "Plug-in language"), shown
+        if key == "auto_scan":
+            return L("Automatyczny skan po otwarciu", "Automatic scan on opening"), L("włączony", "enabled") if self.settings.get(key) else L("wyłączony", "disabled")
+        if key == "monitor_enabled":
+            return L("Monitor krytycznych problemów w tle", "Background critical-problem monitor"), L("włączony", "enabled") if self.settings.get(key) else L("wyłączony", "disabled")
+        if key == "monitor_interval_hours":
+            return L("Odstęp kontroli monitora", "Monitor check interval"), L("%d godz.", "%d hours") % self.settings.get(key, 6)
+        if key == "history_limit":
+            return L("Liczba zapisanych skanów", "Number of saved scans"), "%d" % self.settings.get(key, 20)
+        return key, str(self.settings.get(key))
+    def refresh(self):
+        rows = []
+        for key in self.options:
+            title, value = self.option_text(key)
+            rows.append((STATUS_INFO, title, L("Wartość: %s", "Value: %s") % value))
+        self["list"].setList(rows)
+    def modify(self, direction):
+        index = self["list"].getSelectedIndex()
+        if index < 0 or index >= len(self.options):
+            return
+        key = self.options[index]
+        if key == "language":
+            values = ["auto", "pl", "en"]
+            current = self.settings.get(key, "auto")
+            try:
+                pos = values.index(current)
+            except Exception:
+                pos = 0
+            self.settings[key] = values[(pos + direction) % len(values)]
+        elif key in ("auto_scan", "monitor_enabled"):
+            self.settings[key] = not bool(self.settings.get(key))
+        elif key == "monitor_interval_hours":
+            values = [1, 3, 6, 12, 24]
+            current = self.settings.get(key, 6)
+            try:
+                pos = values.index(current)
+            except Exception:
+                pos = 2
+            self.settings[key] = values[(pos + direction) % len(values)]
+        elif key == "history_limit":
+            values = [5, 10, 20, 30, 50]
+            current = self.settings.get(key, 20)
+            try:
+                pos = values.index(current)
+            except Exception:
+                pos = 2
+            self.settings[key] = values[(pos + direction) % len(values)]
+        self.refresh()
+        try:
+            self["list"].moveToIndex(index)
+        except Exception:
+            pass
+    def change_left(self):
+        self.modify(-1)
+    def change_right(self):
+        self.modify(1)
+    def defaults(self):
+        self.settings = dict(DEFAULT_SETTINGS)
+        self.refresh()
+    def save(self):
+        try:
+            save_e2doctor_settings(self.settings)
+            self.session.openWithCallback(lambda *args: self.close(True), MessageBox, L("Ustawienia zostały zapisane.", "Settings have been saved."), MessageBox.TYPE_INFO, timeout=6)
+        except Exception as error:
+            self.session.open(MessageBox, L("Nie udało się zapisać ustawień:\n%s", "Settings could not be saved:\n%s") % error, MessageBox.TYPE_ERROR)
+
+
+class E2DoctorHistoryScreen(Screen):
+    skin = premium_results_skin("E2DoctorHistoryScreen")
+    def __init__(self, session):
+        Screen.__init__(self, session)
+        self.history = load_history()
+        for name in ("header_bg", "accent", "footer_bg"):
+            self[name] = Label("")
+        self["title"] = Label(L("Historia stanu dekodera", "Receiver health history"))
+        self["status"] = Label(L("Porównuj wyniki i sprawdzaj, co zmieniło się w systemie", "Compare scans and see what changed in the system"))
+        self.entries = []
+        for snapshot in self.history:
+            counts = snapshot.get("counts") or {}
+            title = "%s — %d/100 (%s)" % (snapshot.get("timestamp", L("brak daty", "no date")), snapshot.get("score", 0), translate_text(snapshot.get("grade", "")))
+            summary = L("Błędy %d | Ostrzeżenia %d | %s", "Errors %d | Warnings %d | %s") % (counts.get(STATUS_ERROR, 0), counts.get(STATUS_WARN, 0), snapshot.get("system", "Enigma2"))
+            status = STATUS_ERROR if counts.get(STATUS_ERROR, 0) else STATUS_WARN if counts.get(STATUS_WARN, 0) else STATUS_OK
+            self.entries.append((status, title, summary))
+        if not self.entries:
+            self.entries.append((STATUS_INFO, L("Brak zapisanej historii", "No saved history"), L("Uruchom pełny skan E2 Doctor.", "Run a full E2 Doctor scan.")))
+        self["list"] = E2DoctorV2ResultList(self.entries)
+        self["key_red"] = StaticText(L("Wróć", "Back"))
+        self["key_green"] = StaticText(L("Szczegóły", "Details"))
+        self["key_yellow"] = StaticText(L("Wyczyść historię", "Clear history"))
+        self["key_blue"] = StaticText(L("Wyjście", "Exit"))
+        self["actions"] = ActionMap(["OkCancelActions", "ColorActions"], {
+            "cancel": self.close, "red": self.close, "blue": self.close,
+            "ok": self.show_selected, "green": self.show_selected, "yellow": self.confirm_clear,
+        }, -1)
+    def show_selected(self):
+        index = self["list"].getSelectedIndex()
+        if not self.history or index < 0 or index >= len(self.history):
+            return
+        snapshot = self.history[index]
+        previous = self.history[index + 1] if index + 1 < len(self.history) else None
+        counts = snapshot.get("counts") or {}
+        lines = [
+            L("SKAN: %s", "SCAN: %s") % snapshot.get("timestamp", ""),
+            L("Wynik: %d/100 — %s", "Score: %d/100 — %s") % (snapshot.get("score", 0), translate_text(snapshot.get("grade", ""))),
+            "System: %s | Python %s" % (snapshot.get("system", ""), snapshot.get("python", "")),
+            L("OK: %d | Informacje: %d | Ostrzeżenia: %d | Błędy: %d", "OK: %d | Information: %d | Warnings: %d | Errors: %d") % (counts.get(STATUS_OK, 0), counts.get(STATUS_INFO, 0), counts.get(STATUS_WARN, 0), counts.get(STATUS_ERROR, 0)),
+            "", L("PORÓWNANIE Z POPRZEDNIM SKANEM", "COMPARISON WITH PREVIOUS SCAN"), compare_snapshots(snapshot, previous), "", L("WYKRYTE PROBLEMY", "DETECTED PROBLEMS"),
+        ]
+        issues = snapshot.get("issues") or []
+        if issues:
+            for issue in issues:
+                lines.append("%s %s — %s" % (status_prefix(issue.get("status")), translate_text(issue.get("title", "")), translate_text(issue.get("summary", ""))))
+        else:
+            lines.append(L("Brak ostrzeżeń i błędów.", "No warnings or errors."))
+        self.session.open(E2DoctorTextScreen, L("Historia — %s", "History — %s") % snapshot.get("timestamp", ""), "\n".join(lines))
+    def confirm_clear(self):
+        if self.history:
+            self.session.openWithCallback(self.clear_history, MessageBox, L("Usunąć zapisaną historię skanów E2 Doctor?", "Delete the saved E2 Doctor scan history?"), MessageBox.TYPE_YESNO)
+    def clear_history(self, answer):
+        if answer:
+            try:
+                save_json_file(E2D_HISTORY_FILE, [])
+                self.session.openWithCallback(lambda *args: self.close(), MessageBox, L("Historia została usunięta.", "History has been deleted."), MessageBox.TYPE_INFO, timeout=6)
+            except Exception as error:
+                self.session.open(MessageBox, L("Nie udało się usunąć historii:\n%s", "History could not be deleted:\n%s") % error, MessageBox.TYPE_ERROR)
+
+
+class E2DoctorIPKBrowser(Screen):
+    skin = premium_results_skin("E2DoctorIPKBrowser")
+    def __init__(self, session):
+        Screen.__init__(self, session)
+        self.paths = []
+        for name in ("header_bg", "accent", "footer_bg"):
+            self[name] = Label("")
+        self["title"] = Label(L("E2 Safe Installer — analiza IPK", "E2 Safe Installer — IPK analysis"))
+        self["status"] = Label(L("Analiza bez instalowania i bez modyfikowania systemu", "Analysis without installation or system modification"))
+        self["list"] = E2DoctorV2ResultList([])
+        self["key_red"] = StaticText(L("Wróć", "Back"))
+        self["key_green"] = StaticText(L("Analizuj", "Analyse"))
+        self["key_yellow"] = StaticText(L("Odśwież", "Refresh"))
+        self["key_blue"] = StaticText(L("Wyjście", "Exit"))
+        self["actions"] = ActionMap(["OkCancelActions", "ColorActions"], {
+            "cancel": self.close, "red": self.close, "blue": self.close,
+            "ok": self.analyze_selected, "green": self.analyze_selected, "yellow": self.refresh,
+        }, -1)
+        self.refresh()
+    def refresh(self):
+        self.paths = find_ipk_files()
+        rows = []
+        for path in self.paths:
+            try:
+                summary = "%s | %s" % (format_bytes(os.path.getsize(path)), os.path.dirname(path))
+            except Exception:
+                summary = os.path.dirname(path)
+            rows.append((STATUS_INFO, os.path.basename(path), summary))
+        if not rows:
+            rows.append((STATUS_INFO, L("Nie znaleziono paczek IPK", "No IPK packages found"), L("Skopiuj plik IPK do /tmp lub na nośnik w /media.", "Copy an IPK file to /tmp or a device mounted in /media.")))
+        self["list"].setList(rows)
+        self["status"].setText(L("Znalezione paczki: %d | E2 Doctor nie instaluje wskazanego pliku", "Packages found: %d | E2 Doctor does not install the selected file") % len(self.paths))
+    def analyze_selected(self):
+        index = self["list"].getSelectedIndex()
+        if index < 0 or index >= len(self.paths):
+            return
+        path = self.paths[index]
+        try:
+            self.session.open(E2DoctorTextScreen, L("Analiza — %s", "Analysis — %s") % os.path.basename(path), analyze_ipk(path), "E2 Safe Installer")
+        except Exception as error:
+            self.session.open(MessageBox, L("Nie udało się przeanalizować paczki:\n%s", "The package could not be analysed:\n%s") % error, MessageBox.TYPE_ERROR)
+
+
+# Localise the existing tools screen while preserving all tested action logic.
+_OldToolsScreen23 = E2DoctorTools
+class E2DoctorTools(_OldToolsScreen23):
+    skin = premium_results_skin("E2DoctorTools")
+    def __init__(self, session):
+        _OldToolsScreen23.__init__(self, session)
+        self["title"].setText(L("Bezpieczne narzędzia E2 Doctor", "E2 Doctor safe tools"))
+        self["status"].setText(L("Bezpieczne narzędzia ręczne | każda zmiana wymaga potwierdzenia", "Manual safe tools | every change requires confirmation"))
+        self["key_red"].setText(L("Wróć", "Back"))
+        self["key_green"].setText(L("Wykonaj", "Run"))
+        self["key_yellow"].setText(L("Opis", "Description"))
+        self["key_blue"].setText(L("Wyjście", "Exit"))
+        self["list"].setList([(STATUS_INFO, translate_text(title), translate_text(subtitle)) for title, _action, subtitle in self.tool_entries])
+
+
+# Update screen: fixed labels and dynamic status translation.
+_old_update_init_23 = E2DoctorUpdateScreen.__init__
+_old_update_set_status_23 = E2DoctorUpdateScreen._set_status
+
+def _update_init_23(self, session):
+    _old_update_init_23(self, session)
+    self["title"].setText(L("Aktualizacja E2 Doctor z GitHub", "Update E2 Doctor from GitHub"))
+    self["subtitle"].setText(L("Bezpieczne sprawdzanie wersji, weryfikacja SHA-256 i instalacja IPK", "Safe version check, SHA-256 verification and IPK installation"))
+    self["source"].setText(L("Źródło: github.com/OliOli2013/E2-Doctor-Plugin", "Source: github.com/OliOli2013/E2-Doctor-Plugin"))
+    self["local_title"].setText(L("ZAINSTALOWANA WERSJA", "INSTALLED VERSION"))
+    self["remote_title"].setText(L("WERSJA NA GITHUB", "GITHUB VERSION"))
+    self["status_title"].setText(L("STATUS AKTUALIZACJI", "UPDATE STATUS"))
+    self["notes_title"].setText(L("Informacje o wydaniu", "Release information"))
+    self["key_red"].setText(L("Wróć", "Back"))
+    self["key_green"].setText(L("Sprawdź", "Check"))
+    self["key_yellow"].setText(L("Sprawdź ponownie", "Check again"))
+    self["key_blue"].setText(L("Wyjście", "Exit"))
+    self["remote_version"].setText(L("sprawdzanie...", "checking..."))
+    self["status"].setText(translate_text(self["status"].getText()))
+    self["notes"].setText(translate_text(self["notes"].getText()))
+
+
+def _update_set_status_23(self, text, notes=None):
+    return _old_update_set_status_23(self, translate_text(text), translate_text(notes) if notes is not None else None)
+
+
+E2DoctorUpdateScreen.__init__ = _update_init_23
+E2DoctorUpdateScreen._set_status = _update_set_status_23
+
+
+# Dynamic plug-in-menu description follows the active language.
+def Plugins(**kwargs):
+    description = L("Centrum diagnostyki i bezpiecznej naprawy Enigma2", "Enigma2 diagnostics and safe repair centre")
+    descriptors = [
+        PluginDescriptor(name="E2 Doctor", description=description, where=PluginDescriptor.WHERE_PLUGINMENU, icon="plugin.png", fnc=main),
+        PluginDescriptor(name="E2 Doctor", description=description, where=PluginDescriptor.WHERE_EXTENSIONSMENU, fnc=main),
+    ]
+    try:
+        descriptors.append(PluginDescriptor(where=PluginDescriptor.WHERE_SESSIONSTART, fnc=session_start))
+    except Exception:
+        pass
+    return descriptors
+
+# Additional English phrases used by the safe-tools screen and updater.
+_EXACT_EN.update({
+    "Bezpiecznie oczyść pamięć flash": "Safely clean flash",
+    "Tylko stare crashlogi, archiwa OPKG i zrzuty pamięci": "Only old crashlogs, OPKG archives and memory dumps",
+    "Bezpiecznie odśwież pamięć RAM": "Safely refresh RAM",
+    "Zwalnia cache bez kończenia procesów": "Releases cache without terminating processes",
+    "Pokaż diagnostykę nośników": "Show storage diagnostics",
+    "Bez formatowania i bez naprawy aktywnego systemu plików": "No formatting and no repair of an active filesystem",
+    "Przeładuj listę kanałów": "Reload channel list",
+    "Bez usuwania list i ustawień tunera": "Without removing lists or tuner settings",
+    "Usuń nieaktywną blokadę OPKG": "Remove inactive OPKG lock",
+    "Tylko gdy OPKG nie jest uruchomiony": "Only when OPKG is not running",
+    "Usuń stare crashlogi": "Remove old crashlogs",
+    "Pozostawia 3 najnowsze pliki": "Keeps the three newest files",
+    "Uruchom ponownie OSCam": "Restart OSCam",
+    "Wyszukuje dostępny skrypt startowy": "Finds an available startup script",
+    "Pokaż procesy zużywające RAM": "Show RAM-consuming processes",
+    "Diagnostyka bez kończenia procesów": "Diagnostics without terminating processes",
+    "Znajdź największe pliki": "Find the largest files",
+    "Analiza bez automatycznego usuwania": "Analysis without automatic deletion",
+    "Utwórz raport awaryjny": "Create emergency report",
+    "Działa również z polecenia e2doctor-report": "Also available through the e2doctor-report command",
+    "Cofnij ostatnią bezpieczną zmianę": "Undo the last safe change",
+    "Przywraca backup lub wyłączoną wtyczkę": "Restores a backup or disabled plug-in",
+    "Ustawienia E2 Doctor": "E2 Doctor settings",
+    "Monitoring, historia i automatyczny skan": "Monitoring, history and automatic scanning",
+    "Uruchom ponownie GUI": "Restart GUI",
+    "Wymaga potwierdzenia": "Requires confirmation",
+    "Łączenie z GitHub...": "Connecting to GitHub...",
+    "Trwa pobieranie pliku update.json...": "Downloading update.json...",
+    "Pobieranie i sprawdzanie pliku update.json.": "Downloading and checking update.json.",
+    "DOSTĘPNA NOWA WERSJA": "NEW VERSION AVAILABLE",
+    "MASZ NAJNOWSZĄ WERSJĘ": "YOU HAVE THE LATEST VERSION",
+    "BŁĄD POŁĄCZENIA": "CONNECTION ERROR",
+    "POBIERANIE PACZKI": "DOWNLOADING PACKAGE",
+    "BŁĄD POBIERANIA": "DOWNLOAD ERROR",
+    "AKTUALIZACJA ODRZUCONA": "UPDATE REJECTED",
+    "PACZKA ZWERYFIKOWANA": "PACKAGE VERIFIED",
+    "INSTALOWANIE AKTUALIZACJI": "INSTALLING UPDATE",
+    "BŁĄD INSTALACJI": "INSTALLATION ERROR",
+    "AKTUALIZACJA ZAINSTALOWANA": "UPDATE INSTALLED",
+    "Pobierz i zainstaluj": "Download and install",
+    "Sprawdź ponownie": "Check again",
+    "Spróbuj ponownie": "Try again",
+    "Pobieranie...": "Downloading...",
+    "Instalowanie...": "Installing...",
+    "Gotowe": "Done",
+    "sprawdzanie...": "checking...",
+})
+
+
+def _translate_component_text_23(screen, name):
+    try:
+        component = screen[name]
+        getter = getattr(component, "getText", None)
+        if getter is not None:
+            component.setText(translate_text(getter()))
+    except Exception:
+        pass
+
+
+# Replace the earlier updater initialiser with a guarded variant.
+_old_update_init_guarded_23 = _old_update_init_23
+
+def _update_init_guarded_23(self, session):
+    _old_update_init_guarded_23(self, session)
+    self["title"].setText(L("Aktualizacja E2 Doctor z GitHub", "Update E2 Doctor from GitHub"))
+    self["subtitle"].setText(L("Bezpieczne sprawdzanie wersji, weryfikacja SHA-256 i instalacja IPK", "Safe version check, SHA-256 verification and IPK installation"))
+    self["source"].setText(L("Źródło: github.com/OliOli2013/E2-Doctor-Plugin", "Source: github.com/OliOli2013/E2-Doctor-Plugin"))
+    self["local_title"].setText(L("ZAINSTALOWANA WERSJA", "INSTALLED VERSION"))
+    self["remote_title"].setText(L("WERSJA NA GITHUB", "GITHUB VERSION"))
+    self["status_title"].setText(L("STATUS AKTUALIZACJI", "UPDATE STATUS"))
+    self["notes_title"].setText(L("Informacje o wydaniu", "Release information"))
+    self["key_red"].setText(L("Wróć", "Back"))
+    self["key_green"].setText(L("Sprawdź", "Check"))
+    self["key_yellow"].setText(L("Sprawdź ponownie", "Check again"))
+    self["key_blue"].setText(L("Wyjście", "Exit"))
+    _translate_component_text_23(self, "remote_version")
+    _translate_component_text_23(self, "status")
+    _translate_component_text_23(self, "notes")
+
+E2DoctorUpdateScreen.__init__ = _update_init_guarded_23
+
+
+def _wrap_update_method_23(method_name):
+    original = getattr(E2DoctorUpdateScreen, method_name, None)
+    if original is None:
+        return
+    def wrapped(self, *args, **kwargs):
+        result = original(self, *args, **kwargs)
+        for component_name in ("key_green", "key_yellow", "remote_version", "status", "notes"):
+            _translate_component_text_23(self, component_name)
+        return result
+    setattr(E2DoctorUpdateScreen, method_name, wrapped)
+
+for _method_name in ("check_update", "green_action", "start_download", "_download_finished", "_install_confirmed", "start_install", "_install_finished"):
+    _wrap_update_method_23(_method_name)
+
+_EXACT_EN.update({
+    "ZNAKOMITY": "EXCELLENT",
+    "DOBRY": "GOOD",
+    "WYMAGA UWAGI": "NEEDS ATTENTION",
+    "KRYTYCZNY": "CRITICAL",
+    "Bezpieczeństwo aktualizacji:": "Update security:",
+    "• paczka jest pobierana wyłącznie przez HTTPS z GitHub,": "• the package is downloaded only over HTTPS from GitHub,",
+    "• przed instalacją sprawdzana jest suma SHA-256,": "• the SHA-256 checksum is verified before installation,",
+    "• instalacja wymaga potwierdzenia użytkownika,": "• installation requires user confirmation,",
+    "• po instalacji proponowany jest restart GUI.": "• a GUI restart is offered after installation.",
+    "Trwa pobieranie aktualizacji z GitHub. Nie wyłączaj dekodera.": "The update is being downloaded from GitHub. Do not switch off the receiver.",
+    "Paczka została pobrana i poprawnie zweryfikowana sumą SHA-256.": "The package was downloaded and successfully verified with SHA-256.",
+    "OPKG instaluje zweryfikowaną paczkę. Nie wyłączaj dekodera.": "OPKG is installing the verified package. Do not switch off the receiver.",
+    "Nowa wersja E2 Doctor została zainstalowana poprawnie. Wykonaj restart GUI, aby wczytać nowe pliki.": "The new E2 Doctor version was installed successfully. Restart the GUI to load the new files.",
+})
+_LINE_REPLACEMENTS_EN.extend([
+    ("Data wydania:", "Release date:"),
+    ("Nie udało się sprawdzić aktualizacji.", "The update check failed."),
+    ("Sprawdź internet, DNS, prawidłową datę systemową oraz dostęp do GitHub.", "Check the internet connection, DNS, system date and access to GitHub."),
+    ("Nie udało się pobrać paczki.", "The package could not be downloaded."),
+    ("Kod:", "Code:"),
+    ("Oczekiwana:", "Expected:"),
+    ("Pobrana:", "Downloaded:"),
+    ("OPKG zakończył pracę kodem", "OPKG finished with code"),
+])
+
+_old_fetch_update_manifest_23 = fetch_update_manifest
+
+def fetch_update_manifest(timeout=10):
+    manifest = _old_fetch_update_manifest_23(timeout)
+    if is_english() and isinstance(manifest.get("notes_en"), list):
+        manifest = dict(manifest)
+        manifest["notes"] = manifest.get("notes_en")
+    return manifest
