@@ -1,94 +1,47 @@
-#!/bin/sh
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+"""Emergency report without importing Enigma2 or the graphical plugin."""
+import datetime
+import glob
+import os
+import sys
+sys.path.insert(0, '/usr/lib/enigma2/python/Plugins/Extensions')
+from E2Doctor import runtime
+from E2Doctor import PLUGIN_VERSION
 
-STAMP="$(date +%Y%m%d_%H%M%S 2>/dev/null)"
-[ -n "$STAMP" ] || STAMP="awaryjny"
-OUT="${1:-/tmp/E2Doctor_Raport_Awaryjny_${STAMP}.txt}"
 
-NEWEST_LOG=""
-for PATTERN in /home/root/logs/*crash*.log /home/root/logs/enigma2*.log /media/hdd/*crash*.log /tmp/*crash*.log /tmp/enigma2*.log /var/log/enigma2*.log; do
-    for FILE in $PATTERN; do
-        [ -f "$FILE" ] || continue
-        if [ -z "$NEWEST_LOG" ] || [ "$FILE" -nt "$NEWEST_LOG" ]; then
-            NEWEST_LOG="$FILE"
-        fi
-    done
-done
+def main():
+    stamp=datetime.datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+    path=sys.argv[1] if len(sys.argv)>1 else '/tmp/E2Doctor_Report_'+stamp+'.txt'
+    if os.path.lexists(path):
+        raise RuntimeError('Output already exists; choose another filename')
+    lines=['E2 DOCTOR '+PLUGIN_VERSION+' — EMERGENCY REPORT',stamp,'']
+    for filename in ('/proc/stb/info/model','/etc/image-version','/etc/os-release','/proc/meminfo','/proc/loadavg','/etc/resolv.conf'):
+        try:
+            with open(filename,'rb') as source:
+                lines.extend([filename,source.read(65536).decode('utf-8','replace'),''])
+        except OSError:
+            pass
+    for command in (['uname','-a'],['df','-h','/'],['df','-i','/'],['uptime'],['ip','addr'],['ip','route'],['ps','-eo','pid,comm,rss']):
+        code,out,error=runtime.run_command(command,5)
+        lines.extend([' '.join(command),out if code==0 else 'Unavailable: '+error,''])
+    logs=[]
+    for root in ('/home/root/logs','/media/hdd','/tmp','/var/log'):
+        for log in glob.glob(root+'/*crash*.log'):
+            try:
+                if os.path.isfile(log) and not os.path.islink(log):logs.append((os.path.getmtime(log),log))
+            except OSError:pass
+    if logs:
+        log=max(logs)[1]
+        with open(log,'rb') as source:
+            source.seek(0,os.SEEK_END);source.seek(max(0,source.tell()-256*1024))
+            content=source.read().decode('utf-8','replace')
+        lines.extend(['LATEST CRASHLOG: '+log,'\n'.join(line for line in content.splitlines() if any(key in line for key in ('Traceback','File "','Error:','Exception:','FATAL','Segmentation fault')))[-16000:]])
+    lines.append('Recognised credentials are masked. Review this report before sharing.')
+    runtime.atomic_write(path,runtime.redact('\n'.join(lines)))
+    print(path)
 
-{
-    echo "RAPORT AWARYJNY E2 DOCTOR 2.1"
-    echo "========================================"
-    echo "Data: $(date 2>/dev/null)"
-    echo "Model: $(cat /proc/stb/info/model 2>/dev/null || cat /proc/stb/info/boxtype 2>/dev/null || echo nieznany)"
-    echo "Architektura: $(uname -m 2>/dev/null)"
-    echo "Kernel: $(uname -r 2>/dev/null)"
-    echo "Python: $(python3 -V 2>&1)"
-    echo
-    echo "SYSTEM / OBRAZ"
-    echo "----------------------------------------"
-    [ -f /etc/image-version ] && cat /etc/image-version
-    [ -f /etc/os-release ] && cat /etc/os-release
-    echo
-    echo "PAMIĘĆ FLASH"
-    echo "----------------------------------------"
-    df -h / 2>/dev/null
-    df -i / 2>/dev/null
-    echo
-    echo "PAMIĘĆ RAM"
-    echo "----------------------------------------"
-    free -m 2>/dev/null || cat /proc/meminfo 2>/dev/null | head -n 20
-    echo
-    echo "OBCIĄŻENIE / CZAS PRACY"
-    echo "----------------------------------------"
-    uptime 2>/dev/null
-    cat /proc/loadavg 2>/dev/null
-    echo
-    echo "PUNKTY MONTOWANIA"
-    echo "----------------------------------------"
-    mount 2>/dev/null | grep -E ' on / | on /boot | on /media/'
-    echo
-    echo "SIEĆ"
-    echo "----------------------------------------"
-    ip addr 2>/dev/null || ifconfig 2>/dev/null
-    echo
-    ip route 2>/dev/null || route -n 2>/dev/null
-    echo
-    echo "DNS"
-    echo "----------------------------------------"
-    cat /etc/resolv.conf 2>/dev/null
-    echo
-    echo "OPKG"
-    echo "----------------------------------------"
-    if [ -f /var/lib/opkg/status ]; then
-        grep -E '^Package:|^Status:' /var/lib/opkg/status 2>/dev/null | awk '
-            /^Package:/ {pkg=$0}
-            /^Status:/ && $0 != "Status: install ok installed" {print pkg; print $0; print ""}
-        '
-    else
-        echo "Brak /var/lib/opkg/status"
-    fi
-    echo
-    echo "PROCESY ZUŻYWAJĄCE NAJWIĘCEJ PAMIĘCI"
-    echo "----------------------------------------"
-    ps 2>/dev/null | head -n 60
-    echo
-    echo "NAJNOWSZY CRASHLOG"
-    echo "----------------------------------------"
-    if [ -n "$NEWEST_LOG" ]; then
-        echo "Plik: $NEWEST_LOG"
-        grep -E 'Traceback|File "|Error:|Exception:|SkinError|ImportError|ModuleNotFoundError|No space left|Segmentation fault|FATAL' "$NEWEST_LOG" 2>/dev/null | tail -n 100
-    else
-        echo "Nie znaleziono crashlogów."
-    fi
-    echo
-    echo "Raport nie zawiera pełnych ustawień Enigma2 ani konfiguracji OSCam."
-    echo "Kontakt autora: aio-iptv@wp.pl"
-} > "$OUT" 2>/dev/null
-
-if [ $? -ne 0 ]; then
-    echo "Nie udało się utworzyć raportu: $OUT" >&2
-    exit 1
-fi
-
-chmod 600 "$OUT" 2>/dev/null || true
-echo "$OUT"
-exit 0
+if __name__=='__main__':
+    try:main()
+    except Exception as error:
+        sys.stderr.write(str(error)+'\n');sys.exit(1)

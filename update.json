@@ -1,23 +1,19 @@
 {
   "name": "E2 Doctor",
-  "version": "2.3",
-  "build": "20260711-4",
-  "release_date": "2026-07-11",
+  "version": "2.4.1",
+  "build": "20260910-2",
+  "release_date": "2026-09-10",
   "min_python": 3,
-  "download_url": "https://raw.githubusercontent.com/OliOli2013/E2-Doctor-Plugin/main/releases/enigma2-plugin-extensions-e2doctor_2.3_all.ipk",
-  "sha256": "519532845210805fd66e57f62de17d560b21186c0599a48478aa3ad186736360",
+  "download_url": "https://raw.githubusercontent.com/OliOli2013/E2-Doctor-Plugin/main/releases/enigma2-plugin-extensions-e2doctor_2.4.1_all.ipk",
+  "sha256": "0ccb97bb98eeb66dc78aa997836cae6206be5c627f5a956851471883f6511380",
   "notes": [
-    "Poprawiono obcięte piktogramy i dodano osobne ikony dla HD oraz Full HD.",
-    "Dodano wybór języka: automatyczny, polski lub angielski.",
-    "W trybie automatycznym polski jest używany tylko w polskim systemie; pozostałe języki uruchamiają interfejs angielski.",
-    "Przetłumaczono panel, diagnostykę, rozwiązania, ustawienia, historię, raporty i analizator IPK.",
-    "Zachowano naprawę z poziomu problemu oraz aktualizację bezpośrednio z GitHub."
+    "Przywrócono szatę graficzną wersji 2.3: duże logo, kondycja tunera, liczniki i lista modułów.",
+    "Zachowano poprawki funkcji, skanowanie w tle i bezpieczniejszy aktualizator z wersji 2.4.0.",
+    "Poprawiono odstępy tekstu oraz układ poprzedniego aktualizatora HD."
   ],
   "notes_en": [
-    "Fixed clipped pictograms and added separate icon sets for HD and Full HD.",
-    "Added language selection: automatic, Polish or English.",
-    "In automatic mode Polish is used only for a Polish system language; every other system language opens the English interface.",
-    "Translated the dashboard, diagnostics, solutions, settings, history, reports and IPK analyser.",
-    "Kept problem-level repair actions and direct updates from GitHub."
+    "Restored the 2.3 appearance: large logo, health score, counters and module list.",
+    "Kept the functional fixes, background scans and safer updater from 2.4.0.",
+    "Adjusted text spacing and the classic HD updater layout."
   ]
 }

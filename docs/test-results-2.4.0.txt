@@ -1,0 +1,30 @@
+test_all_checks_isolate_errors_and_cancel (test_e2doctor.CoreTests.test_all_checks_isolate_errors_and_cancel) ... ok
+test_ar_rejects_truncated_negative_duplicate (test_e2doctor.CoreTests.test_ar_rejects_truncated_negative_duplicate) ... ok
+test_archive_traversal_rejected (test_e2doctor.CoreTests.test_archive_traversal_rejected) ... ok
+test_atomic_permissions_and_utf8_tail (test_e2doctor.CoreTests.test_atomic_permissions_and_utf8_tail) ... ok
+test_cleanup_changed_file_kept (test_e2doctor.CoreTests.test_cleanup_changed_file_kept) ... ok
+test_dependency_providers (test_e2doctor.CoreTests.test_dependency_providers) ... ok
+test_last_traceback_context (test_e2doctor.CoreTests.test_last_traceback_context) ... ok
+test_package_states (test_e2doctor.CoreTests.test_package_states) ... ok
+test_process_timeout (test_e2doctor.CoreTests.test_process_timeout) ... ok
+test_redaction (test_e2doctor.CoreTests.test_redaction) ... ok
+test_skin_bounds_and_names (test_e2doctor.CoreTests.test_skin_bounds_and_names) ... ok
+test_updater_initializes_and_cleans_temp (test_e2doctor.CoreTests.test_updater_initializes_and_cleans_temp) ... ok
+test_urls_and_versions (test_e2doctor.CoreTests.test_urls_and_versions) ... ok
+test_worker_ui_only_main_thread_and_close (test_e2doctor.CoreTests.test_worker_ui_only_main_thread_and_close) ... ok
+test_all_secondary_screens_construct (test_e2doctor.ReleaseTests.test_all_secondary_screens_construct) ... ok
+test_lamedb5_recognized (test_e2doctor.ReleaseTests.test_lamedb5_recognized) ... ok
+test_manifest_arrives_after_paint (test_e2doctor.ReleaseTests.test_manifest_arrives_after_paint) ... ok
+test_release_checksum_control_and_files (test_e2doctor.ReleaseTests.test_release_checksum_control_and_files) ... ok
+test_update_does_not_claim_old_files_installed (test_e2doctor.ReleaseTests.test_update_does_not_claim_old_files_installed) ... ok
+test_update_skin_inside_bounds (test_e2doctor.ReleaseTests.test_update_skin_inside_bounds) ... ok
+
+----------------------------------------------------------------------
+Ran 20 tests in 0.195s
+
+OK
+
+Reproducible IPK: PASS
+Emergency CLI without Enigma2: PASS (600)
+Python grammar 3.5: PASS (not a Python 3.5 runtime test)
+Physical receiver: NOT TESTED

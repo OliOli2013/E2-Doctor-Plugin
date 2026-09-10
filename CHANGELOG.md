@@ -1,39 +1,23 @@
-## E2 Doctor 2.3
+# E2 Doctor 2.4.1 — 2026-09-10
 
-- poprawiono obcięte piktogramy: dodano osobne, prawidłowo skalowane ikony dla HD i Full HD,
-- dodano wybór języka: automatyczny, polski lub angielski,
-- w trybie automatycznym wtyczka otwiera się po polsku tylko przy polskim języku systemu; każdy inny język systemu uruchamia interfejs angielski,
-- przetłumaczono panel główny, moduły diagnostyczne, ustawienia, raporty, rozwiązania problemów, centrum naprawy, historię i analizator IPK,
-- przebudowano opisy w kartach: dynamiczny opis znajduje się w środkowej części, a po prawej wyświetlany jest krótki status,
-- zachowano aktualizację z GitHub, naprawę z poziomu problemu i wszystkie bezpieczne narzędzia.
+- Przywrócona szata graficzna z wersji 2.3: logo, ocena kondycji, kolorowe liczniki i lista modułów.
+- Przywrócona paleta i układ ekranów pomocniczych oraz aktualizatora.
+- Zachowane poprawki diagnostyki, aktualizacji, bezpieczeństwa plików i narzędzi z 2.4.0.
+- Poprzedni panel współpracuje ze skanowaniem i zapisywaniem raportów w tle.
+- Zachowanie wybranego modułu po odświeżeniu; oczekiwanie na skan przed raportem lub naprawą.
+- Korekta odstępów w wierszach listy; większy obszar starego aktualizatora HD, aby status nie nachodził na przyciski.
+- 22 testy lokalne. Fizyczny tuner nadal wymaga weryfikacji.
 
-## E2 Doctor 2.2
+# E2 Doctor 2.4.0 — 2026-09-10
 
-- nowy panel główny w stylu premium z kafelkami modułów, ikonami i krótszymi statusami,
-- usunięto problem z obcinaniem napisu statusu w wierszach,
-- każdy moduł ma teraz ikonę, opis oraz czytelny badge stanu po prawej stronie,
-- zachowano górny panel kondycji tunera i centrum szybkiej naprawy,
-- poprawiono prezentację modułów, aby interfejs był bardziej atrakcyjny na tunerach E2,
-- wersja zachowuje aktualizację z GitHub i naprawę z poziomu problemu.
+- Nowy panel AIO: trzy kolumny, nieprzezroczyste tło i turkusowe akcenty.
+- Skanowanie, analiza IPK/Python i pobieranie aktualizacji w tle; komunikaty postępu.
+- Poprawki diagnostyki TLS, OPKG, lamedb5 i analizy crashlogów.
+- Prywatne pliki tymczasowe; limity czasu/rozmiaru; SHA-256 oraz kontrola nazwy, wersji i architektury paczki.
+- Sprawdzenie faktycznie zainstalowanych plików po zakończeniu OPKG.
+- Ostrożniejsze czyszczenie starych crashlogów, kopie i przywracanie bukietów.
+- Wyłączenie podejrzanej wtyczki poza drzewem skanowanym przez Enigma2.
+- Maskowanie rozpoznanych sekretów w raportach i nowy raport awaryjny bez GUI.
+- Usunięcie 43 przesłoniętych definicji; wydzielenie modułów; powtarzalne pakowanie i 20 testów.
 
-# Historia zmian E2 Doctor
-
-## 2.1 — build 20260711-2
-
-- Dodano moduł **Aktualizacja z GitHub** w panelu głównym.
-- Dodano skrót klawiszem **0** do ekranu aktualizacji.
-- Aktualizator odczytuje dane z pliku `update.json` w oficjalnym repozytorium.
-- Paczka IPK jest pobierana przez HTTPS i weryfikowana sumą SHA-256.
-- Pobieranie, instalacja i restart GUI wymagają potwierdzenia użytkownika.
-- Zachowano panel premium, Centrum szybkiej naprawy i naprawy kontekstowe.
-- Stopka zawiera autora i adres `aio-iptv@wp.pl`.
-
-## 2.1 — pierwsze wydanie
-
-- Nowy panel premium i wyraźniejsze logo.
-- Ocena kondycji tunera 0–100.
-- Centrum szybkiej naprawy.
-- Naprawy dostępne bezpośrednio z poziomu wykrytego problemu.
-- Bezpieczne czyszczenie flash i odświeżenie pamięci RAM.
-- Analiza crashlogów, sieci, list kanałów, tunerów, nośników, OPKG, OSCam, EPG i piconów.
-- Historia skanów, raporty i analiza paczek IPK.
+Pełna lista ustaleń i granic testów: `docs/AUDYT-2.4.0-PL.md`.

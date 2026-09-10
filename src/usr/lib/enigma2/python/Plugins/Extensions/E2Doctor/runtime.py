@@ -1,8 +1,3 @@
-#!/bin/sh
-set -eu
-command -v python3 >/dev/null 2>&1 || { echo 'E2 Doctor wymaga Python 3.'; exit 1; }
-command -v opkg >/dev/null 2>&1 || { echo 'Nie znaleziono OPKG.'; exit 1; }
-python3 - <<'E2DOCTOR_PY'
 # -*- coding: utf-8 -*-
 """Bounded I/O helpers; no Enigma2 dependencies. Python 3.5+."""
 import hashlib
@@ -209,32 +204,17 @@ def redact(text):
     return text
 
 
-
-import shutil
-
-def install():
-    # Overall download timeout also covers a blocked DNS resolver.
-    signal.alarm(90)
-    with tempfile.TemporaryDirectory(prefix='e2doctor-installer-') as directory:
-        manifest_path=os.path.join(directory,'update.json')
-        download('https://raw.githubusercontent.com/OliOli2013/E2-Doctor-Plugin/main/update.json',manifest_path,131072)
-        with open(manifest_path,encoding='utf-8') as source:
-            manifest=json.load(source)
-        if not isinstance(manifest,dict) or not valid_url(manifest.get('download_url')):
-            raise ValueError('Nieprawidłowy manifest aktualizacji')
-        if int(manifest.get('min_python',3))>sys.version_info[0]:
-            raise ValueError('Niezgodna wersja Python')
-        path=os.path.join(directory,'update.ipk')
-        print('Pobieranie E2 Doctor '+str(manifest.get('version','?')),flush=True)
-        download(manifest['download_url'],path)
-        verify_ipk(path,manifest)
-        signal.alarm(0)
-        print('SHA-256 i pakiet poprawne. Instalowanie…',flush=True)
-        subprocess.check_call(['opkg','install',path])
-        print('Instalacja zakończona. Wykonaj restart GUI Enigma2.')
-try:
-    install()
-except Exception as error:
-    sys.stderr.write('BŁĄD: '+str(error)+'\n')
-    sys.exit(1)
-E2DOCTOR_PY
+if __name__ == '__main__':
+    try:
+        if sys.argv[1] == 'network':
+            context = ssl.create_default_context()
+            with socket.create_connection(('github.com', 443), timeout=4) as raw:
+                with context.wrap_socket(raw, server_hostname='github.com') as connection:
+                    print('github.com:443 / ' + connection.version() + ' / certificate verified')
+        elif sys.argv[1] == 'download':
+            download(sys.argv[2], sys.argv[3], int(sys.argv[4]) if len(sys.argv) > 4 else MAX_IPK)
+        else:
+            raise ValueError('Unknown command')
+    except Exception as error:
+        sys.stderr.write(str(error) + '\n')
+        sys.exit(1)

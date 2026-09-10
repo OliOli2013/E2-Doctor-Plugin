@@ -2,6 +2,9 @@
 from __future__ import absolute_import
 
 import datetime
+import tempfile
+import stat
+from . import runtime
 import glob
 import json
 import os
@@ -32,10 +35,10 @@ except Exception:
 try:
     from . import PLUGIN_VERSION, PLUGIN_AUTHOR, PLUGIN_EMAIL, PLUGIN_BUILD
 except Exception:
-    PLUGIN_VERSION = "2.3"
+    PLUGIN_VERSION = "2.4.1"
     PLUGIN_AUTHOR = "Paweł Pawełek"
     PLUGIN_EMAIL = "aio-iptv@wp.pl"
-    PLUGIN_BUILD = "20260711-4"
+    PLUGIN_BUILD = "20260910-2"
 
 PLUGIN_PATH = os.path.dirname(os.path.abspath(__file__))
 SETTINGS_FILE = "/etc/enigma2/settings"
@@ -61,7 +64,7 @@ TEXTS = {
     "report_failed": "Nie udało się utworzyć raportu:\n{error}",
     "tool_title": "Bezpieczne narzędzia",
     "tool_reload": "Przeładuj listę kanałów",
-    "tool_lock": "Usuń nieaktywną blokadę OPKG",
+    "tool_lock": "Sprawdź blokadę OPKG",
     "tool_logs": "Usuń stare crashlogi (pozostaw 3 najnowsze)",
     "tool_oscam": "Uruchom ponownie OSCam",
     "tool_gui": "Uruchom ponownie GUI",
@@ -111,40 +114,17 @@ def safe_format(value, context):
 
 def read_text(path, limit=None):
     try:
-        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+        with open(path, "rb") as handle:
             if limit:
                 handle.seek(0, os.SEEK_END)
-                size = handle.tell()
-                handle.seek(max(0, size - limit), os.SEEK_SET)
-            return handle.read()
-    except Exception:
+                handle.seek(max(0, handle.tell() - limit))
+            return handle.read().decode("utf-8", "replace")
+    except (OSError, ValueError):
         return ""
 
 
 def write_text_atomic(path, content):
-    temp_path = "%s.e2doctor.tmp" % path
-    original_stat = None
-    try:
-        original_stat = os.stat(path)
-    except Exception:
-        pass
-    with open(temp_path, "w", encoding="utf-8") as handle:
-        handle.write(content)
-        handle.flush()
-        try:
-            os.fsync(handle.fileno())
-        except Exception:
-            pass
-    if original_stat is not None:
-        try:
-            os.chmod(temp_path, original_stat.st_mode)
-        except Exception:
-            pass
-        try:
-            os.chown(temp_path, original_stat.st_uid, original_stat.st_gid)
-        except Exception:
-            pass
-    os.replace(temp_path, path)
+    runtime.atomic_write(path, content)
 
 
 def format_bytes(value):
@@ -161,26 +141,7 @@ def format_bytes(value):
 
 
 def run_command(command, timeout=8):
-    process = None
-    try:
-        process = subprocess.Popen(
-            command,
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            universal_newlines=True,
-        )
-        stdout, stderr = process.communicate(timeout=timeout)
-        return process.returncode, stdout.strip(), stderr.strip()
-    except subprocess.TimeoutExpired:
-        try:
-            if process is not None:
-                process.kill()
-        except Exception:
-            pass
-        return 124, "", "Przekroczono limit czasu"
-    except Exception as error:
-        return 255, "", str(error)
+    return runtime.run_command(command, timeout)
 
 
 def process_running(name):
@@ -210,26 +171,6 @@ def load_solutions():
 
 
 SOLUTIONS = load_solutions()
-
-
-def get_solution(item):
-    solution_id = item.get("solution_id")
-    raw = SOLUTIONS.get(solution_id, {}) if solution_id else {}
-    context = dict(item.get("context") or {})
-    context.setdefault("title", item.get("title", ""))
-    context.setdefault("summary", item.get("summary", ""))
-    context.setdefault("plugin", "nie ustalono")
-    context.setdefault("module", "nie ustalono")
-    context.setdefault("error", item.get("summary", "nie ustalono"))
-    solution = {}
-    for key, value in raw.items():
-        if isinstance(value, list):
-            solution[key] = [safe_format(entry, context) for entry in value]
-        else:
-            solution[key] = safe_format(value, context)
-    if item.get("safe_action"):
-        solution["action"] = item.get("safe_action")
-    return solution
 
 
 def get_image_info():
@@ -302,6 +243,9 @@ def check_memory(results):
         format_bytes(total), format_bytes(available), percent, format_bytes(swap_free), format_bytes(swap_total)
     )
     context = {"available": format_bytes(available), "percent": "%.1f" % percent, "swap_free": format_bytes(swap_free)}
+    if not total:
+        add_result(results, STATUS_INFO, "Pamięć RAM", L("Brak danych RAM", "RAM data unavailable"))
+        return
     if total and available < 8 * 1024 * 1024 and swap_free < 16 * 1024 * 1024:
         add_result(results, STATUS_ERROR, "Pamięć RAM", "Krytycznie mało dostępnej pamięci RAM: %s" % format_bytes(available), details, "ram_critical", context)
     elif total and (available < 50 * 1024 * 1024 or percent < 6):
@@ -319,19 +263,13 @@ def check_time(results):
 
 
 def check_network(results):
-    try:
-        addresses = socket.getaddrinfo("github.com", 443, socket.AF_UNSPEC, socket.SOCK_STREAM)
-        resolved = sorted(set(item[4][0] for item in addresses))
-        add_result(results, STATUS_OK, "DNS", "Domena github.com została poprawnie rozwiązana", "Odnalezione adresy: %s" % ", ".join(resolved[:6]))
-    except Exception as error:
-        add_result(results, STATUS_ERROR, "DNS", "Nie można rozwiązać domeny github.com", str(error), "dns_error", {"error": str(error)})
-        return
-    try:
-        connection = socket.create_connection(("github.com", 443), timeout=3)
-        connection.close()
-        add_result(results, STATUS_OK, "Połączenie z internetem", "Połączenie HTTPS działa poprawnie", "Połączenie TCP z github.com:443 zakończono poprawnie.")
-    except Exception as error:
-        add_result(results, STATUS_WARN, "Połączenie z internetem", "DNS działa, ale połączenie HTTPS nie powiodło się", str(error), "https_error", {"error": str(error)})
+    # Resolver and TLS run in a bounded child, including libc DNS lookup time.
+    code, output, error = run_command([sys.executable, os.path.join(PLUGIN_PATH, "runtime.py"), "network"], timeout=12)
+    if code == 0:
+        add_result(results, STATUS_OK, "DNS", L("Rozwiązano domenę github.com", "Resolved github.com"), output)
+        add_result(results, STATUS_OK, "Połączenie z internetem", L("TLS i certyfikat github.com: poprawne", "github.com TLS and certificate: passed"), output)
+    else:
+        add_result(results, STATUS_WARN, "Połączenie z internetem", L("Test GitHub nie powiódł się", "GitHub connectivity test failed"), error or output, "https_error", {"error": error or output})
 
 
 def check_opkg(results):
@@ -341,7 +279,7 @@ def check_opkg(results):
         return
     lock_paths = ["/var/lib/opkg/lock", "/var/lock/opkg.lock", "/run/opkg.lock"]
     existing = [path for path in lock_paths if os.path.exists(path)]
-    status_file = "/var/lib/opkg/status"
+    status_file = next((x for x in ("/var/lib/opkg/status", "/usr/lib/opkg/status") if os.path.isfile(x)), "/var/lib/opkg/status")
     details = "Program: %s\nBaza pakietów: %s\nBlokady: %s" % (
         opkg,
         status_file if os.path.exists(status_file) else "brak",
@@ -349,8 +287,8 @@ def check_opkg(results):
     )
     if not os.path.exists(status_file):
         add_result(results, STATUS_WARN, "Menedżer pakietów OPKG", "Nie znaleziono bazy zainstalowanych pakietów", details, "opkg_db_missing")
-    elif existing and not process_running("opkg") and not process_running("opkg-cl"):
-        add_result(results, STATUS_WARN, "Menedżer pakietów OPKG", "Możliwa nieaktywna blokada OPKG", details, "opkg_lock")
+    elif process_running("opkg") or process_running("opkg-cl"):
+        add_result(results, STATUS_INFO, "Menedżer pakietów OPKG", L("OPKG pracuje — poczekaj na zakończenie", "OPKG is running — wait for completion"), details)
     else:
         add_result(results, STATUS_OK, "Menedżer pakietów OPKG", "OPKG jest dostępny", details)
 
@@ -386,7 +324,7 @@ def check_bouquets(results):
     existing_indexes = [path for path in indexes if os.path.exists(path)]
     for index in existing_indexes:
         references.extend(parse_bouquet_references(index))
-    lamedb = os.path.join(base, "lamedb")
+    lamedb = next((os.path.join(base, name) for name in ("lamedb", "lamedb5") if os.path.isfile(os.path.join(base, name))), os.path.join(base, "lamedb"))
     lamedb_size = os.path.getsize(lamedb) if os.path.exists(lamedb) else 0
     bouquet_files = glob.glob(os.path.join(base, "userbouquet.*"))
     details = "Indeksy bukietów: %d\nOdwołania do bukietów: %d\nPliki bukietów: %d\nBrakujące odwołania: %s\nPlik lamedb: %s" % (
@@ -506,97 +444,16 @@ def check_oscam(results):
 
 
 def find_crashlogs():
-    patterns = [
-        "/home/root/logs/*crash*.log", "/home/root/logs/enigma2*.log", "/media/hdd/*crash*.log",
-        "/media/hdd/enigma2*.log", "/tmp/*crash*.log", "/tmp/enigma2*.log", "/var/log/enigma2*.log",
-    ]
-    files = []
-    for pattern in patterns:
-        files.extend(glob.glob(pattern))
-    valid = []
-    for path in sorted(set(files)):
-        try:
-            if os.path.isfile(path) and os.path.getsize(path) > 0:
-                valid.append(path)
-        except Exception:
-            pass
-    return sorted(valid, key=lambda item: os.path.getmtime(item), reverse=True)
-
-
-def analyze_crashlog(content):
-    rules = [
-        ("missing_module", r"ModuleNotFoundError:\s*No module named ['\"]?([^'\"\s]+)", "Brak modułu Python: {0}", "crash_python_module", "module"),
-        ("missing_module", r"No module named ['\"]?([^'\"\s]+)", "Brak modułu Python: {0}", "crash_python_module", "module"),
-        ("import_error", r"ImportError:\s*(.+)", "Błąd importu: {0}", "crash_import", "error"),
-        ("skin_error", r"SkinError:\s*(.+)", "Błąd skina: {0}", "crash_skin", "error"),
-        ("no_space", r"No space left on device", "Brak wolnego miejsca na urządzeniu", "crash_no_space", None),
-        ("syntax_error", r"SyntaxError:\s*(.+)", "Błąd składni Python: {0}", "crash_python_error", "error"),
-        ("indent_error", r"IndentationError:\s*(.+)", "Błąd wcięć Python: {0}", "crash_python_error", "error"),
-        ("type_error", r"TypeError:\s*(.+)", "Błąd typu danych: {0}", "crash_python_error", "error"),
-        ("runtime_error", r"RuntimeError:\s*(.+)", "Błąd wykonania: {0}", "crash_python_error", "error"),
-        ("key_error", r"KeyError:\s*(.+)", "Brak klucza w danych wtyczki: {0}", "crash_python_error", "error"),
-        ("index_error", r"IndexError:\s*(.+)", "Błąd indeksu lub listy we wtyczce: {0}", "crash_python_error", "error"),
-        ("attribute_error", r"AttributeError:\s*(.+)", "Błąd zgodności wtyczki lub API: {0}", "crash_python_error", "error"),
-        ("permission", r"Permission denied", "Brak uprawnień do pliku lub katalogu", "crash_permission", None),
-        ("readonly", r"Read-only file system", "System plików jest zamontowany tylko do odczytu", "crash_readonly", None),
-        ("ssl", r"certificate verify failed", "Błąd weryfikacji certyfikatu HTTPS", "crash_ssl", None),
-        ("network", r"Network is unreachable", "Sieć jest niedostępna", "crash_network", None),
-        ("segfault", r"Segmentation fault", "Błąd segmentacji składnika systemowego", "crash_segfault", None),
-        ("fatal", r"FATAL.*?(.+)", "Błąd krytyczny: {0}", "crash_generic", "error"),
-    ]
-    plugin_match = re.findall(r"Plugins/Extensions/([^/\s]+)/", content)
-    plugin_name = plugin_match[-1] if plugin_match else "nie ustalono"
-    findings = []
-    seen = set()
-    for code, pattern, message, solution_id, context_key in rules:
-        match = re.search(pattern, content, re.IGNORECASE)
-        if not match:
-            continue
-        value = ""
-        if match.lastindex:
+    files = {}
+    for directory in ("/home/root/logs", "/media/hdd", "/tmp", "/var/log"):
+        for path in glob.glob(os.path.join(directory, "*crash*.log")):
             try:
-                value = match.group(1).strip()[:180]
-            except Exception:
-                value = ""
-        text = message.format(value) if "{0}" in message else message
-        if text in seen:
-            continue
-        context = {"plugin": plugin_name, "error": value or text}
-        if context_key:
-            context[context_key] = value or "nie ustalono"
-        findings.append({"code": code, "message": text, "solution_id": solution_id, "context": context})
-        seen.add(text)
-    return findings
-
-
-def check_crashlogs(results):
-    logs = find_crashlogs()
-    if not logs:
-        add_result(results, STATUS_OK, "Crashlogi Enigma2", "Nie znaleziono crashlogów", "Sprawdzono standardowe katalogi logów.")
-        return
-    newest = logs[0]
-    content = read_text(newest, limit=700000)
-    findings = analyze_crashlog(content)
-    modified = os.path.getmtime(newest)
-    stamp = datetime.datetime.fromtimestamp(modified).strftime("%Y-%m-%d %H:%M:%S")
-    age_hours = max(0.0, (time.time() - modified) / 3600.0)
-    has_traceback = "Traceback (most recent call last)" in content or "Segmentation fault" in content or "FATAL" in content
-    finding_lines = [item["message"] for item in findings]
-    details = "Najnowszy log: %s\nOstatnia modyfikacja: %s\nLiczba wykrytych logów: %d\nWiek najnowszego logu: %.1f godz.\n\nAnaliza:\n%s" % (
-        newest, stamp, len(logs), age_hours, "\n".join(finding_lines) if finding_lines else "Nie rozpoznano znanego wzorca błędu."
-    )
-    if findings:
-        first = findings[0]
-        context = dict(first.get("context") or {})
-        context.update({"log_path": newest, "log_count": len(logs), "age_hours": "%.1f" % age_hours})
-        if has_traceback and age_hours <= 48:
-            add_result(results, STATUS_ERROR, "Crashlogi Enigma2", first["message"], details, first["solution_id"], context)
-        else:
-            add_result(results, STATUS_WARN, "Crashlogi Enigma2", first["message"], details, first["solution_id"], context)
-    else:
-        solution_id = "crash_generic" if has_traceback else None
-        status = STATUS_WARN if has_traceback and age_hours <= 48 else STATUS_INFO
-        add_result(results, status, "Crashlogi Enigma2", "Crashlogi: %d, brak rozpoznanego wzorca" % len(logs), details, solution_id, {"log_path": newest})
+                info = os.lstat(path)
+                if stat.S_ISREG(info.st_mode) and info.st_size:
+                    files[path] = info.st_mtime
+            except OSError:
+                pass
+    return sorted(files, key=files.get, reverse=True)
 
 
 def check_temperature(results):
@@ -627,177 +484,60 @@ def check_temperature(results):
         add_result(results, STATUS_OK, "Temperatura", "%.1f °C" % highest, details)
 
 
-def run_all_checks():
-    results = []
-    checks = [
-        check_system, check_flash, check_memory, check_time, check_network, check_opkg, check_bouquets,
-        check_tuner_config, check_mounts, check_epg, check_picons, check_oscam, check_crashlogs, check_temperature,
-    ]
-    for check in checks:
-        try:
-            check(results)
-        except Exception as error:
-            add_result(results, STATUS_ERROR, check.__name__, "Moduł diagnostyczny zakończył się błędem", "%s\n%s" % (error, traceback.format_exc()), "diagnostic_error", {"error": str(error), "module": check.__name__})
-    return results
-
-
 def status_prefix(status):
     return {STATUS_OK: "[ OK ]", STATUS_WARN: "[ !  ]", STATUS_ERROR: "[ X  ]", STATUS_INFO: "[ i  ]"}.get(status, "[ ?  ]")
 
 
-def status_name(status):
-    return {STATUS_OK: "WYNIK PRAWIDŁOWY", STATUS_WARN: "OSTRZEŻENIE", STATUS_ERROR: "WYKRYTY BŁĄD", STATUS_INFO: "INFORMACJA"}.get(status, "WYNIK")
-
-
 def choose_writable_report_dir():
-    for candidate in ("/media/hdd", "/media/usb", "/media/mmc", "/media/sda1"):
-        if os.path.ismount(candidate) and os.access(candidate, os.W_OK):
-            return candidate
-    return "/tmp"
-
-
-def build_solution_text(item, include_technical=False):
-    solution = get_solution(item)
-    lines = [
-        status_name(item.get("status")),
-        "",
-        item.get("title", ""),
-        "Wykryto: %s" % item.get("summary", ""),
-    ]
-    if solution:
-        lines.extend(["", "MOŻLIWA PRZYCZYNA", "", solution.get("cause", "Brak dodatkowego opisu przyczyny.")])
-        consequences = solution.get("consequences")
-        if consequences:
-            lines.extend(["", "MOŻLIWE SKUTKI", "", consequences])
-        steps = solution.get("steps") or []
-        if steps:
-            lines.extend(["", "CO NALEŻY ZROBIĆ", ""])
-            for index, step in enumerate(steps, 1):
-                lines.append("%d. %s" % (index, step))
-        restart = solution.get("restart")
-        if restart:
-            lines.extend(["", "RESTART", "", restart])
-        action = solution.get("action")
-        if action:
-            lines.extend(["", "BEZPIECZNE DZIAŁANIE", "", "Zielony przycisk: %s" % solution.get("action_label", "Wykonaj działanie")])
-        elif item.get("status") in (STATUS_WARN, STATUS_ERROR):
-            lines.extend(["", "DZIAŁANIE AUTOMATYCZNE", "", tr("no_safe_action")])
-    else:
-        if item.get("status") in (STATUS_OK, STATUS_INFO):
-            lines.extend(["", "Nie wykryto problemu wymagającego naprawy."])
-        else:
-            lines.extend(["", "Brak gotowej instrukcji dla tego wyniku. Zapisz raport i sprawdź dane techniczne."])
-    if include_technical:
-        lines.extend(["", "DANE TECHNICZNE", "", item.get("details", "Brak danych technicznych.")])
-    return "\n".join(lines)
-
-
-def make_report(results):
-    now = datetime.datetime.now()
-    path = os.path.join(choose_writable_report_dir(), "E2Doctor_Raport_%s.txt" % now.strftime("%Y%m%d_%H%M%S"))
-    distro, version, build = get_image_info()
-    lines = [
-        "Raport diagnostyczny E2 Doctor", "Utworzono: %s" % now.strftime("%Y-%m-%d %H:%M:%S"),
-        "Wersja wtyczki: %s" % PLUGIN_VERSION, "Autor: %s" % PLUGIN_AUTHOR,
-        "System: %s %s" % (distro, version), "Kompilacja: %s" % (build or "nieznana"),
-        "Python: %s" % sys.version.replace("\n", " "),
-        "Architektura: %s" % (os.uname().machine if hasattr(os, "uname") else "nieznana"), "",
-        "UWAGA: Raport nie zawiera haseł, linii serwerów OSCam ani pełnego pliku ustawień.", "",
-    ]
-    for item in results:
-        lines.extend(["=" * 72, "%s %s" % (status_prefix(item["status"]), item["title"]), item["summary"], "-" * 72, item["details"]])
-        if item.get("status") in (STATUS_WARN, STATUS_ERROR) and item.get("solution_id"):
-            lines.extend(["", "MOŻLIWE ROZWIĄZANIE", "-" * 72, build_solution_text(item, include_technical=False)])
-        lines.append("")
-    code, uptime, _ = run_command("uptime", timeout=3)
-    if code == 0:
-        lines.extend(["=" * 72, "Czas pracy systemu", uptime, ""])
-    with open(path, "w", encoding="utf-8") as handle:
-        handle.write("\n".join(lines))
-    return path
+    for directory in ("/media/hdd", "/media/usb", "/tmp"):
+        if directory != "/tmp" and not os.path.ismount(directory):
+            continue
+        try:
+            fd, probe = tempfile.mkstemp(prefix=".e2doctor-probe-", dir=directory)
+            os.close(fd)
+            os.unlink(probe)
+            return directory
+        except OSError:
+            continue
+    raise RuntimeError(L("Brak miejsca na zapis raportu.", "No writable report directory."))
 
 
 def save_solution_instruction(item):
     now = datetime.datetime.now()
     safe_name = re.sub(r"[^A-Za-z0-9_-]+", "_", item.get("title", "wynik"))[:50]
-    path = os.path.join(choose_writable_report_dir(), "E2Doctor_Instrukcja_%s_%s.txt" % (safe_name, now.strftime("%Y%m%d_%H%M%S")))
-    with open(path, "w", encoding="utf-8") as handle:
-        handle.write(build_solution_text(item, include_technical=True))
-        handle.write("\n")
+    path = os.path.join(choose_writable_report_dir(), "E2Doctor_Instrukcja_%s_%s.txt" % (safe_name, now.strftime("%Y%m%d_%H%M%S_%f")))
+    write_text_atomic(path, runtime.redact(build_solution_text(item, include_technical=True)) + "\n")
     return path
 
 
-def create_backup(paths, label):
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_dir = "/etc/enigma2/e2doctor_backup_%s_%s" % (label, timestamp)
-    os.makedirs(backup_dir, exist_ok=False)
-    copied = 0
-    for path in paths:
-        if os.path.isfile(path):
-            shutil.copy2(path, os.path.join(backup_dir, os.path.basename(path)))
-            copied += 1
-    if copied == 0:
-        try:
-            os.rmdir(backup_dir)
-        except Exception:
-            pass
-        raise RuntimeError("Nie znaleziono plików do wykonania kopii")
-    return backup_dir
-
-
-def repair_missing_bouquet_refs():
-    base = "/etc/enigma2"
-    indexes = [path for path in (os.path.join(base, "bouquets.tv"), os.path.join(base, "bouquets.radio")) if os.path.isfile(path)]
-    missing_pairs = find_missing_bouquet_refs()
-    missing_set = set((index, filename) for index, filename in missing_pairs)
-    if not missing_set:
-        return 0, "Nie znaleziono brakujących odwołań."
-    backup_dir = create_backup(indexes, "bukiety")
-    pattern = re.compile(r'FROM BOUQUET\s+"([^"]+)"', re.IGNORECASE)
-    removed = 0
-    for index_path in indexes:
-        content = read_text(index_path)
-        output = []
-        for line in content.splitlines(True):
-            match = pattern.search(line)
-            if match and (index_path, match.group(1)) in missing_set:
-                removed += 1
-                continue
-            output.append(line)
-        write_text_atomic(index_path, "".join(output))
-    if eDVBDB is not None:
-        db = eDVBDB.getInstance()
-        db.reloadServicelist()
-        db.reloadBouquets()
-    return removed, backup_dir
-
-
 def remove_inactive_opkg_locks():
+    import fcntl
     if process_running("opkg") or process_running("opkg-cl"):
         raise RuntimeError(tr("lock_active"))
-    removed = []
     for path in ("/var/lib/opkg/lock", "/var/lock/opkg.lock", "/run/opkg.lock"):
-        if os.path.exists(path):
-            os.remove(path)
-            removed.append(path)
-    return removed
+        if os.path.isfile(path) and not os.path.islink(path):
+            with open(path, "r+") as handle:
+                try:
+                    fcntl.lockf(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except IOError:
+                    raise RuntimeError(tr("lock_active"))
+                finally:
+                    fcntl.lockf(handle.fileno(), fcntl.LOCK_UN)
+    # POSIX locks are released on exit. Unlinking races with a new OPKG process.
+    return []
 
 
 def cleanup_old_crashlogs(keep=3):
-    logs = find_crashlogs()
-    removed = []
-    for path in logs[keep:]:
-        try:
-            os.remove(path)
-            removed.append(path)
-        except Exception:
-            pass
+    # Same age/symlink checks as flash cleanup; never touch active generic logs.
+    removed, failed, _ = perform_safe_flash_cleanup()
+    if failed:
+        raise RuntimeError("\n".join(failed))
     return removed
 
 
 def restart_oscam_service():
     commands = [
-        "/etc/init.d/softcam.oscam restart", "/etc/init.d/oscam restart", "systemctl restart oscam", "killall -HUP oscam",
+        "/etc/init.d/softcam.oscam restart", "/etc/init.d/oscam restart", "systemctl restart oscam",
     ]
     errors = []
     for command in commands:
@@ -828,34 +568,15 @@ def sync_system_time():
 
 
 def network_diagnostic_text():
-    lines = ["TEST SIECI E2 DOCTOR", ""]
-    code, routes, error = run_command("ip route 2>/dev/null || route -n 2>/dev/null", timeout=5)
-    lines.extend(["Trasy sieciowe:", routes if code == 0 and routes else error or "brak danych", ""])
-    resolv = read_text("/etc/resolv.conf").strip()
-    lines.extend(["Konfiguracja DNS:", resolv or "brak danych", ""])
-    gateway = None
-    match = re.search(r"default\s+via\s+([0-9.]+)", routes or "")
-    if not match:
-        match = re.search(r"^0\.0\.0\.0\s+([0-9.]+)", routes or "", re.MULTILINE)
-    if match:
-        gateway = match.group(1)
-        code, output, error = run_command("ping -c 1 -W 2 %s" % gateway, timeout=4)
-        lines.extend(["Brama %s: %s" % (gateway, "OK" if code == 0 else "BŁĄD"), output or error or "brak odpowiedzi", ""])
-    else:
-        lines.extend(["Brama: nie wykryto trasy domyślnej", ""])
-    try:
-        addresses = socket.getaddrinfo("github.com", 443, socket.AF_UNSPEC, socket.SOCK_STREAM)
-        resolved = sorted(set(item[4][0] for item in addresses))
-        lines.extend(["DNS github.com: OK", ", ".join(resolved[:6]), ""])
-    except Exception as error:
-        lines.extend(["DNS github.com: BŁĄD", str(error), ""])
-    try:
-        connection = socket.create_connection(("github.com", 443), timeout=4)
-        connection.close()
-        lines.extend(["Połączenie github.com:443: OK"])
-    except Exception as error:
-        lines.extend(["Połączenie github.com:443: BŁĄD", str(error)])
-    return "\n".join(lines)
+    lines = [L("TEST SIECI E2 DOCTOR", "E2 DOCTOR NETWORK TEST"), ""]
+    for command in (["ip", "addr"], ["ip", "route"]):
+        code, output, error = run_command(command, timeout=5)
+        lines.extend([" ".join(command), output or error, ""])
+    lines.extend(["DNS: /etc/resolv.conf", read_text("/etc/resolv.conf", 65536), ""])
+    code, output, error = run_command([sys.executable, os.path.join(PLUGIN_PATH, "runtime.py"), "network"], timeout=12)
+    lines.extend(["DNS / TCP / TLS github.com:443", output or error,
+                  L("Test dotyczy GitHub; nie ocenia wszystkich usług internetowych.", "This test covers GitHub, not every Internet service.")])
+    return runtime.redact("\n".join(lines))
 
 
 def top_memory_processes_text(limit=12):
@@ -937,215 +658,6 @@ class E2DoctorResultList(MenuList):
     def build_entry(self, status, text):
         color = self.COLORS.get(status, 0x00FFFFFF)
         return [None, MultiContentEntryText(pos=(8, 0), size=(1058, 42), font=0, flags=RT_HALIGN_LEFT | RT_VALIGN_CENTER, text=text, color=color, color_sel=color)]
-
-
-class E2DoctorTextScreen(Screen):
-    skin = """
-    <screen name="E2DoctorTextScreen" position="center,center" size="1120,650" title="E2 Doctor">
-        <widget name="title" position="35,20" size="1050,48" font="Regular;34" halign="center" />
-        <widget name="body" position="45,85" size="1030,475" font="Regular;24" scrollbarMode="showOnDemand" />
-        <widget source="key_red" render="Label" position="60,590" size="230,40" font="Regular;25" halign="center" foregroundColor="#ff5555" />
-        <widget source="key_blue" render="Label" position="830,590" size="230,40" font="Regular;25" halign="center" foregroundColor="#5599ff" />
-    </screen>
-    """
-
-    def __init__(self, session, title, text):
-        Screen.__init__(self, session)
-        self["title"] = Label(title)
-        self["body"] = ScrollLabel(text)
-        self["key_red"] = StaticText(tr("back"))
-        self["key_blue"] = StaticText(tr("exit"))
-        self["actions"] = ActionMap(
-            ["OkCancelActions", "ColorActions", "DirectionActions"],
-            {"cancel": self.close, "red": self.close, "blue": self.close, "ok": self.close, "up": self["body"].pageUp, "down": self["body"].pageDown, "left": self["body"].pageUp, "right": self["body"].pageDown},
-            -1,
-        )
-
-
-class E2DoctorSolutionScreen(Screen):
-    skin = """
-    <screen name="E2DoctorSolutionScreen" position="center,center" size="1180,690" title="E2 Doctor">
-        <widget name="title" position="35,18" size="1110,45" font="Regular;34" halign="center" />
-        <widget name="status" position="45,70" size="1090,35" font="Regular;24" halign="center" />
-        <widget name="body" position="45,120" size="1090,455" font="Regular;24" scrollbarMode="showOnDemand" />
-        <widget source="key_red" render="Label" position="35,615" size="240,42" font="Regular;24" halign="center" foregroundColor="#ff5555" />
-        <widget source="key_green" render="Label" position="305,615" size="260,42" font="Regular;24" halign="center" foregroundColor="#55ff55" />
-        <widget source="key_yellow" render="Label" position="595,615" size="250,42" font="Regular;24" halign="center" foregroundColor="#ffff55" />
-        <widget source="key_blue" render="Label" position="875,615" size="270,42" font="Regular;24" halign="center" foregroundColor="#5599ff" />
-    </screen>
-    """
-
-    def __init__(self, session, item):
-        Screen.__init__(self, session)
-        self.item = item
-        self.solution = get_solution(item)
-        self.action_name = self.solution.get("action")
-        self["title"] = Label(tr("solution_title"))
-        self["status"] = Label("%s — %s" % (status_name(item.get("status")), item.get("title", "")))
-        self["body"] = ScrollLabel(build_solution_text(item, include_technical=False))
-        self["key_red"] = StaticText(tr("back"))
-        self["key_green"] = StaticText(self.solution.get("action_label", "") if self.action_name else "")
-        self["key_yellow"] = StaticText(tr("technical"))
-        self["key_blue"] = StaticText(tr("save_help"))
-        self["actions"] = ActionMap(
-            ["OkCancelActions", "ColorActions", "DirectionActions"],
-            {
-                "cancel": self.close, "red": self.close, "green": self.perform_action, "ok": self.perform_action,
-                "yellow": self.show_technical, "blue": self.save_instruction,
-                "up": self["body"].pageUp, "down": self["body"].pageDown, "left": self["body"].pageUp, "right": self["body"].pageDown,
-            },
-            -1,
-        )
-
-    def show_technical(self):
-        self.session.open(E2DoctorTextScreen, "Dane techniczne — %s" % self.item.get("title", ""), self.item.get("details", "Brak danych technicznych."))
-
-    def save_instruction(self):
-        try:
-            path = save_solution_instruction(self.item)
-            self.session.open(MessageBox, tr("instruction_saved", path=path), MessageBox.TYPE_INFO, timeout=8)
-        except Exception as error:
-            self.session.open(MessageBox, tr("failed", error=str(error)), MessageBox.TYPE_ERROR)
-
-    def perform_action(self):
-        if not self.action_name:
-            self.session.open(MessageBox, tr("no_safe_action"), MessageBox.TYPE_INFO, timeout=7)
-            return
-        confirmations = {
-            "repair_bouquet_refs": tr("confirm_repair_bouquets"),
-            "remove_opkg_lock": tr("confirm_remove_lock"),
-            "restart_oscam": tr("confirm_restart_oscam"),
-            "sync_time": tr("confirm_sync_time"),
-        }
-        if self.action_name in confirmations:
-            self.session.openWithCallback(self._confirmed_action, MessageBox, confirmations[self.action_name], MessageBox.TYPE_YESNO)
-        else:
-            self._execute_action()
-
-    def _confirmed_action(self, answer):
-        if answer:
-            self._execute_action()
-
-    def _show_success_and_close(self, message):
-        self.session.openWithCallback(lambda *args: self.close(True), MessageBox, message, MessageBox.TYPE_INFO, timeout=8)
-
-    def _execute_action(self):
-        try:
-            if self.action_name == "repair_bouquet_refs":
-                removed, backup_dir = repair_missing_bouquet_refs()
-                self._show_success_and_close("Usunięto błędne odwołania: %d\nKopia bezpieczeństwa:\n%s" % (removed, backup_dir))
-            elif self.action_name == "remove_opkg_lock":
-                removed = remove_inactive_opkg_locks()
-                if removed:
-                    self._show_success_and_close("Usunięto blokady OPKG:\n%s" % "\n".join(removed))
-                else:
-                    self.session.open(MessageBox, tr("lock_missing"), MessageBox.TYPE_INFO, timeout=6)
-            elif self.action_name == "restart_oscam":
-                command, _ = restart_oscam_service()
-                self._show_success_and_close("OSCam został uruchomiony ponownie.\nUżyte polecenie: %s" % command)
-            elif self.action_name == "sync_time":
-                command, _ = sync_system_time()
-                self._show_success_and_close("Uruchomiono synchronizację czasu.\nUżyte polecenie: %s\nAktualny czas: %s" % (command, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-            elif self.action_name == "network_test":
-                self.session.open(E2DoctorTextScreen, "Test sieci", network_diagnostic_text())
-            elif self.action_name == "show_processes":
-                self.session.open(E2DoctorTextScreen, "Zużycie pamięci RAM", top_memory_processes_text())
-            elif self.action_name == "find_large_files":
-                self.session.open(E2DoctorTextScreen, "Największe pliki", largest_files_text())
-            else:
-                self.session.open(MessageBox, "Nieznane działanie: %s" % self.action_name, MessageBox.TYPE_ERROR)
-        except Exception as error:
-            self.session.open(MessageBox, tr("failed", error=str(error)), MessageBox.TYPE_ERROR)
-
-
-class E2DoctorTools(Screen):
-    skin = """
-    <screen name="E2DoctorTools" position="center,center" size="900,520" title="E2 Doctor">
-        <widget name="title" position="35,25" size="830,50" font="Regular;34" halign="center" />
-        <widget name="list" position="45,95" size="810,320" font="Regular;26" itemHeight="46" scrollbarMode="showOnDemand" />
-        <widget source="key_green" render="Label" position="250,455" size="180,40" font="Regular;24" halign="center" foregroundColor="#55ff55" />
-        <widget source="key_blue" render="Label" position="650,455" size="180,40" font="Regular;24" halign="center" foregroundColor="#5599ff" />
-    </screen>
-    """
-
-    def __init__(self, session):
-        Screen.__init__(self, session)
-        self["title"] = Label(tr("tool_title"))
-        self["key_green"] = StaticText("OK")
-        self["key_blue"] = StaticText(tr("exit"))
-        self.tool_entries = [
-            (tr("tool_reload"), "reload"), (tr("tool_lock"), "lock"), (tr("tool_logs"), "logs"),
-            (tr("tool_oscam"), "oscam"), (tr("tool_gui"), "gui"),
-        ]
-        self["list"] = MenuList([item[0] for item in self.tool_entries])
-        self["actions"] = ActionMap(["OkCancelActions", "ColorActions"], {"ok": self.execute, "green": self.execute, "cancel": self.close, "blue": self.close}, -1)
-
-    def execute(self):
-        index = self["list"].getSelectedIndex()
-        if index < 0 or index >= len(self.tool_entries):
-            return
-        action = self.tool_entries[index][1]
-        if action == "reload":
-            self.reload_bouquets()
-        elif action == "lock":
-            self.remove_opkg_lock()
-        elif action == "logs":
-            self.session.openWithCallback(self.logs_confirmed, MessageBox, tr("confirm_logs"), MessageBox.TYPE_YESNO)
-        elif action == "oscam":
-            self.session.openWithCallback(self.oscam_confirmed, MessageBox, tr("confirm_restart_oscam"), MessageBox.TYPE_YESNO)
-        elif action == "gui":
-            self.session.openWithCallback(self.gui_confirmed, MessageBox, tr("confirm_gui"), MessageBox.TYPE_YESNO)
-
-    def show_result(self, success=True, error=""):
-        text = tr("success") if success else tr("failed", error=error)
-        self.session.open(MessageBox, text, MessageBox.TYPE_INFO if success else MessageBox.TYPE_ERROR, timeout=7)
-
-    def reload_bouquets(self):
-        try:
-            if eDVBDB is None:
-                raise RuntimeError("Interfejs eDVBDB jest niedostępny")
-            db = eDVBDB.getInstance()
-            db.reloadServicelist()
-            db.reloadBouquets()
-            self.show_result(True)
-        except Exception as error:
-            self.show_result(False, str(error))
-
-    def remove_opkg_lock(self):
-        try:
-            removed = remove_inactive_opkg_locks()
-            if removed:
-                self.session.open(MessageBox, "Usunięto:\n%s" % "\n".join(removed), MessageBox.TYPE_INFO, timeout=7)
-            else:
-                self.session.open(MessageBox, tr("lock_missing"), MessageBox.TYPE_INFO, timeout=6)
-        except Exception as error:
-            self.show_result(False, str(error))
-
-    def logs_confirmed(self, answer):
-        if not answer:
-            return
-        try:
-            removed = cleanup_old_crashlogs(3)
-            self.session.open(MessageBox, "Usunięto starych crashlogów: %d" % len(removed), MessageBox.TYPE_INFO, timeout=7)
-        except Exception as error:
-            self.show_result(False, str(error))
-
-    def oscam_confirmed(self, answer):
-        if not answer:
-            return
-        try:
-            command, _ = restart_oscam_service()
-            self.session.open(MessageBox, "OSCam został uruchomiony ponownie.\n%s" % command, MessageBox.TYPE_INFO, timeout=7)
-        except Exception as error:
-            self.show_result(False, str(error))
-
-    def gui_confirmed(self, answer):
-        if answer:
-            try:
-                from Screens.Standby import TryQuitMainloop
-                self.session.open(TryQuitMainloop, 3)
-            except Exception as error:
-                self.show_result(False, str(error))
 
 
 class E2DoctorMain(Screen):
@@ -1231,16 +743,6 @@ class E2DoctorMain(Screen):
     def open_tools(self):
         self.session.open(E2DoctorTools)
 
-
-def main(session, **kwargs):
-    session.open(E2DoctorMain)
-
-
-def Plugins(**kwargs):
-    return [
-        PluginDescriptor(name="E2 Doctor", description=tr("subtitle"), where=PluginDescriptor.WHERE_PLUGINMENU, icon="plugin.png", fnc=main),
-        PluginDescriptor(name="E2 Doctor", description=tr("subtitle"), where=PluginDescriptor.WHERE_EXTENSIONSMENU, fnc=main),
-    ]
 
 # -----------------------------------------------------------------------------
 # E2 Doctor 2.1 - panel diagnostyczny, centrum naprawy i tryb awaryjny
@@ -1340,15 +842,7 @@ def load_json_file(path, default):
 
 def save_json_file(path, value):
     ensure_state_dirs()
-    temp = "%s.tmp" % path
-    with open(temp, "w", encoding="utf-8") as handle:
-        json.dump(value, handle, ensure_ascii=False, indent=2, sort_keys=True)
-        handle.flush()
-        try:
-            os.fsync(handle.fileno())
-        except Exception:
-            pass
-    os.replace(temp, path)
+    write_text_atomic(path, json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True))
 
 
 def load_e2doctor_settings():
@@ -1393,16 +887,6 @@ def calculate_health_score(results):
         elif status == STATUS_INFO and title == "Data i czas systemowy":
             score -= 2
     return max(0, min(100, score))
-
-
-def health_grade(score):
-    if score >= 92:
-        return "ZNAKOMITY"
-    if score >= 78:
-        return "DOBRY"
-    if score >= 58:
-        return "WYMAGA UWAGI"
-    return "KRYTYCZNY"
 
 
 def result_counts(results):
@@ -1476,48 +960,6 @@ def save_history_snapshot(results, force=False):
     return snapshot
 
 
-def compare_snapshots(current, previous):
-    if not current or not previous:
-        return "To pierwszy zapisany skan E2 Doctor."
-    current_map = {x.get("key"): x for x in current.get("issues", [])}
-    previous_map = {x.get("key"): x for x in previous.get("issues", [])}
-    new_items = []
-    resolved = []
-    worsened = []
-    for key, item in current_map.items():
-        old = previous_map.get(key)
-        if old is None:
-            new_items.append(item)
-        elif STATUS_RANK.get(item.get("status"), 0) > STATUS_RANK.get(old.get("status"), 0):
-            worsened.append(item)
-    for key, item in previous_map.items():
-        if key not in current_map:
-            resolved.append(item)
-    diff = int(current.get("score", 0)) - int(previous.get("score", 0))
-    lines = ["Zmiana wyniku: %+d pkt" % diff]
-    if new_items:
-        lines.append("Nowe problemy: %s" % ", ".join(x.get("title", "") for x in new_items[:4]))
-    if worsened:
-        lines.append("Pogorszenie: %s" % ", ".join(x.get("title", "") for x in worsened[:4]))
-    if resolved:
-        lines.append("Rozwiązane: %s" % ", ".join(x.get("title", "") for x in resolved[:4]))
-    if not new_items and not worsened and not resolved:
-        lines.append("Nie wykryto zmian w problemach.")
-    return " | ".join(lines)
-
-
-def current_change_summary(results):
-    history = load_history()
-    current = compact_snapshot(results)
-    previous = None
-    if history:
-        if snapshot_signature(history[0]) == snapshot_signature(current) and len(history) > 1:
-            previous = history[1]
-        else:
-            previous = history[0]
-    return compare_snapshots(current, previous)
-
-
 def load_operations():
     value = load_json_file(E2D_OPERATIONS_FILE, [])
     return value if isinstance(value, list) else []
@@ -1561,18 +1003,21 @@ def rollback_last_operation():
     data = operation.get("data") or {}
     operation_type = operation.get("type")
     if operation_type == "restore_files":
-        restored = 0
-        for entry in data.get("files", []):
-            source = entry.get("backup")
-            target = entry.get("original")
-            if source and target and os.path.isfile(source):
-                parent = os.path.dirname(target)
-                if parent and not os.path.isdir(parent):
-                    os.makedirs(parent)
-                shutil.copy2(source, target)
-                restored += 1
-        if restored == 0:
-            raise RuntimeError("Kopia plików nie jest już dostępna.")
+        entries = data.get("files", [])
+        staged = []
+        for entry in entries:
+            source, target = entry.get("backup"), entry.get("original")
+            if not source or target not in ("/etc/enigma2/bouquets.tv", "/etc/enigma2/bouquets.radio"):
+                raise RuntimeError("Invalid bouquet backup manifest")
+            if not os.path.realpath(source).startswith(os.path.realpath(E2D_BACKUP_DIR) + os.sep):
+                raise RuntimeError("Backup is outside E2 Doctor backup directory")
+            with open(source, "r", encoding="utf-8") as handle:
+                staged.append((target, handle.read()))
+        if not staged:
+            raise RuntimeError("Backup files are no longer available")
+        for target, content in staged:
+            write_text_atomic(target, content)
+        restored = len(staged)
         if eDVBDB is not None and data.get("reload_bouquets"):
             db = eDVBDB.getInstance()
             db.reloadServicelist()
@@ -1746,7 +1191,7 @@ def check_storage_health(results):
 
 
 def parse_opkg_status():
-    content = read_text("/var/lib/opkg/status")
+    content = read_text(next((x for x in ("/var/lib/opkg/status", "/usr/lib/opkg/status") if os.path.isfile(x)), "/var/lib/opkg/status"))
     packages = []
     current = {}
     for line in content.splitlines() + [""]:
@@ -1778,7 +1223,7 @@ def check_opkg_integrity(results):
     broken = []
     for package in packages:
         status = package.get("status", "")
-        if status and status != "install ok installed":
+        if runtime.broken_package_status(status):
             broken.append("%s: %s" % (package.get("package", "nieznany"), status))
     details = "Zainstalowane wpisy: %d\nNieprawidłowe stany: %d" % (len(packages), len(broken))
     if broken:
@@ -1826,6 +1271,9 @@ def extract_traceback_context(content):
 
 
 def analyze_crashlog(content):
+    marker = "Traceback (most recent call last):"
+    if marker in content:
+        content = marker + content.rsplit(marker, 1)[1]
     context = extract_traceback_context(content)
     rules = [
         (r"ModuleNotFoundError:\s*No module named ['\"]?([^'\"\s]+)", "Brak modułu Python: {0}", "crash_python_module", "module"),
@@ -1911,7 +1359,7 @@ def check_crashlogs(results):
         content = read_text(path, limit=900000)
         findings = analyze_crashlog(content)
         if findings:
-            analyzed.append((path, findings[0], content))
+            analyzed.append((path, findings[0], None))
     newest = logs[0]
     content = read_text(newest, limit=900000)
     findings = analyze_crashlog(content)
@@ -1947,32 +1395,7 @@ def check_crashlogs(results):
         add_result(results, status, "Crashlogi Enigma2", "Crashlogi: %d, brak jednoznacznego rozpoznania" % len(logs), details, "crash_generic", {"log_path": newest})
 
 
-def get_solution(item):
-    solution_id = item.get("solution_id")
-    raw = SOLUTIONS.get(solution_id, {}) if solution_id else {}
-    context = dict(item.get("context") or {})
-    context.setdefault("title", item.get("title", ""))
-    context.setdefault("summary", item.get("summary", ""))
-    context.setdefault("plugin", "nie ustalono")
-    context.setdefault("module", "nie ustalono")
-    context.setdefault("error", item.get("summary", "nie ustalono"))
-    context.setdefault("file", "nie ustalono")
-    context.setdefault("line", "nie ustalono")
-    context.setdefault("function", "nie ustalono")
-    solution = {}
-    for key, value in raw.items():
-        if isinstance(value, list):
-            solution[key] = [safe_format(entry, context) for entry in value]
-        else:
-            solution[key] = safe_format(value, context)
-    if item.get("safe_action"):
-        solution["action"] = item.get("safe_action")
-    if solution.get("action") == "disable_suspect_plugin":
-        solution["action_label"] = "Tymczasowo wyłącz wtyczkę"
-    return solution
-
-
-def run_all_checks(session=None):
+def run_all_checks(session=None, progress=None, cancel=None):
     results = []
     checks = [
         check_system, check_flash, check_memory, check_time, check_system_load,
@@ -1980,13 +1403,18 @@ def run_all_checks(session=None):
         check_tuner_config, check_tuner_hardware, check_mounts, check_storage_health,
         check_epg, check_picons, check_oscam, check_crashlogs, check_temperature,
     ]
-    for check in checks:
+    for index, check in enumerate(checks):
+        if cancel is not None and cancel.is_set():
+            break
+        if progress is not None:
+            progress(index, len(checks), check.__name__)
         try:
             check(results)
         except Exception as error:
             add_result(results, STATUS_ERROR, check.__name__, "Moduł diagnostyczny zakończył się błędem", "%s\n%s" % (error, traceback.format_exc()), "diagnostic_error", {"error": str(error), "module": check.__name__})
     try:
-        check_live_tuner(results, session)
+        if session is not None:
+            check_live_tuner(results, session)
     except Exception as error:
         add_result(results, STATUS_INFO, "Aktywna głowica i sygnał", "Nie udało się wykonać odczytu", str(error))
     return assign_modules(results)
@@ -1995,8 +1423,7 @@ def run_all_checks(session=None):
 def create_backup(paths, label):
     ensure_state_dirs()
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_dir = os.path.join(E2D_BACKUP_DIR, "%s_%s" % (label, timestamp))
-    os.makedirs(backup_dir)
+    backup_dir = tempfile.mkdtemp(prefix=label + "_" + timestamp + "_", dir=E2D_BACKUP_DIR)
     copied = []
     for path in paths:
         if os.path.isfile(path):
@@ -2021,6 +1448,12 @@ def repair_missing_bouquet_refs():
     if not missing_set:
         return 0, "Nie znaleziono brakujących odwołań."
     backup_dir, copied = create_backup(indexes, "bukiety")
+    record_operation(
+        "Naprawa odwołań do bukietów",
+        "restore_files",
+        {"backup_dir": backup_dir, "files": copied, "reload_bouquets": True},
+        True,
+    )
     pattern = re.compile(r'FROM BOUQUET\s+"([^"]+)"', re.IGNORECASE)
     removed = 0
     for index_path in indexes:
@@ -2037,33 +1470,24 @@ def repair_missing_bouquet_refs():
         db = eDVBDB.getInstance()
         db.reloadServicelist()
         db.reloadBouquets()
-    record_operation(
-        "Naprawa odwołań do bukietów",
-        "restore_files",
-        {"backup_dir": backup_dir, "files": copied, "reload_bouquets": True},
-        True,
-    )
     return removed, backup_dir
 
 
 def disable_suspect_plugin(context):
     plugin_path = os.path.realpath((context or {}).get("plugin_path", ""))
-    extensions_root = os.path.realpath("/usr/lib/enigma2/python/Plugins/Extensions")
-    if not plugin_path or not plugin_path.startswith(extensions_root + os.sep):
-        raise RuntimeError("Nie ustalono bezpiecznej ścieżki wtyczki Extensions.")
-    if os.path.basename(plugin_path) == "E2Doctor":
-        raise RuntimeError("E2 Doctor nie może wyłączyć własnego katalogu.")
-    if not os.path.isdir(plugin_path):
-        raise RuntimeError("Katalog podejrzanej wtyczki nie istnieje.")
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    disabled = "%s.disabled_by_e2doctor_%s" % (plugin_path, timestamp)
+    root = os.path.realpath("/usr/lib/enigma2/python/Plugins/Extensions")
+    if os.path.dirname(plugin_path) != root or os.path.basename(plugin_path) == "E2Doctor" or not os.path.isdir(plugin_path):
+        raise RuntimeError(L("Nieprawidłowy katalog wtyczki Extensions.", "Invalid Extensions plug-in directory."))
+    # Outside Plugins: renamed folders inside Extensions are still scanned by Enigma2.
+    quarantine = os.path.join(os.path.dirname(os.path.dirname(root)), "e2doctor-disabled")
+    os.makedirs(quarantine, mode=0o700, exist_ok=True)
+    disabled = os.path.join(quarantine, os.path.basename(plugin_path) + "_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f"))
     os.rename(plugin_path, disabled)
-    record_operation(
-        "Tymczasowe wyłączenie wtyczki %s" % os.path.basename(plugin_path),
-        "rename_plugin",
-        {"original": plugin_path, "disabled": disabled},
-        True,
-    )
+    try:
+        record_operation("Wyłączenie wtyczki " + os.path.basename(plugin_path), "rename_plugin", {"original": plugin_path, "disabled": disabled}, True)
+    except Exception:
+        os.rename(disabled, plugin_path)
+        raise
     return plugin_path, disabled
 
 
@@ -2074,7 +1498,7 @@ def make_report(results):
     score = calculate_health_score(results)
     counts = result_counts(results)
     lines = [
-        "RAPORT DIAGNOSTYCZNY E2 DOCTOR 2.3",
+        "RAPORT DIAGNOSTYCZNY E2 DOCTOR 2.4.1",
         "=" * 78,
         "Utworzono: %s" % now.strftime("%Y-%m-%d %H:%M:%S"),
         "Wersja wtyczki: %s" % PLUGIN_VERSION,
@@ -2090,7 +1514,7 @@ def make_report(results):
         ),
         "Zmiany: %s" % current_change_summary(results),
         "",
-        "Raport nie zawiera haseł, linii serwerów OSCam ani pełnego pliku ustawień.",
+        "Raport pomija konfigurację OSCam i pełne ustawienia. Rozpoznane sekrety są maskowane; przed udostępnieniem sprawdź treść.",
         "",
     ]
     for item in results:
@@ -2107,8 +1531,7 @@ def make_report(results):
     code, uptime, _ = run_command("uptime", timeout=3)
     if code == 0:
         lines.extend(["=" * 78, "Czas pracy systemu", uptime, ""])
-    with open(path, "w", encoding="utf-8") as handle:
-        handle.write("\n".join(lines))
+    write_text_atomic(path, runtime.redact("\n".join(lines)))
     return path
 
 
@@ -2224,27 +1647,7 @@ def find_ipk_files():
 
 
 def read_ar_members(path):
-    members = {}
-    with open(path, "rb") as handle:
-        if handle.read(8) != b"!<arch>\n":
-            raise RuntimeError("Plik nie ma prawidłowego nagłówka archiwum IPK/ar.")
-        while True:
-            header = handle.read(60)
-            if not header:
-                break
-            if len(header) != 60 or header[58:60] != b"`\n":
-                raise RuntimeError("Uszkodzony nagłówek archiwum IPK.")
-            name = header[0:16].decode("utf-8", "replace").strip().rstrip("/")
-            size_text = header[48:58].decode("ascii", "replace").strip()
-            try:
-                size = int(size_text)
-            except Exception:
-                raise RuntimeError("Nieprawidłowy rozmiar elementu IPK.")
-            data = handle.read(size)
-            if size % 2:
-                handle.read(1)
-            members[name] = data
-    return members
+    return runtime.read_ar_members(path)
 
 
 def parse_control_fields(text):
@@ -2275,13 +1678,11 @@ def accepted_opkg_architectures():
 
 
 def installed_package_names():
-    return {item.get("package") for item in parse_opkg_status() if item.get("package")}
+    return runtime.installed_names(parse_opkg_status())
 
 
 def normalize_dependency_name(raw):
-    value = re.sub(r"\([^\)]*\)", "", raw).strip()
-    value = value.split("|")[0].strip()
-    return value
+    return re.sub(r"\([^)]*\)", "", raw).strip()
 
 
 def analyze_ipk(path):
@@ -2296,12 +1697,12 @@ def analyze_ipk(path):
         raise RuntimeError("Nie można odczytać %s: %s" % (control_name, error))
     control_text = ""
     scripts = []
-    for member in control_tar.getmembers():
+    for member in runtime.tar_members(control_tar):
         name = member.name.lstrip("./")
         if name == "control" and member.isfile():
             extracted = control_tar.extractfile(member)
             if extracted:
-                control_text = extracted.read().decode("utf-8", "replace")
+                control_text = extracted.read(1024 * 1024).decode("utf-8", "replace")
         if name in ("preinst", "postinst", "prerm", "postrm") and member.isfile():
             scripts.append(name)
     fields = parse_control_fields(control_text)
@@ -2309,7 +1710,7 @@ def analyze_ipk(path):
         data_tar = tarfile.open(fileobj=io.BytesIO(members[data_name]), mode="r:*")
     except Exception as error:
         raise RuntimeError("Nie można odczytać %s: %s" % (data_name, error))
-    files = [member for member in data_tar.getmembers() if member.isfile() or member.issym() or member.islnk()]
+    files = [member for member in runtime.tar_members(data_tar) if member.isfile() or member.issym() or member.islnk()]
     paths = ["/" + member.name.lstrip("./") for member in files]
     risky_paths = []
     risk_prefixes = (
@@ -2327,7 +1728,7 @@ def analyze_ipk(path):
         py_files += 1
         try:
             extracted = data_tar.extractfile(member)
-            content = extracted.read().decode("utf-8", "replace") if extracted else ""
+            content = extracted.read(1024 * 1024).decode("utf-8", "replace") if extracted else ""
             try:
                 ast.parse(content, filename=member.name)
             except SyntaxError as error:
@@ -2344,10 +1745,10 @@ def analyze_ipk(path):
             pass
     package_arch = fields.get("architecture", "nieznana")
     accepted = accepted_opkg_architectures()
-    architecture_ok = package_arch in accepted or package_arch in ("all", "noarch", "nieznana")
+    architecture_ok = package_arch in accepted or package_arch in ("all", "noarch")
     depends = [normalize_dependency_name(x) for x in fields.get("depends", "").split(",") if normalize_dependency_name(x)]
     installed = installed_package_names()
-    missing_dependencies = [dep for dep in depends if dep not in installed]
+    missing_dependencies = [dep for dep in depends if not any(x.strip() in installed for x in dep.split("|"))]
     installed_size = 0
     for member in files:
         try:
@@ -2588,32 +1989,6 @@ def results_skin():
     }
 
 
-class E2DoctorDashboardList(MenuList):
-    def __init__(self, entries=None):
-        MenuList.__init__(self, entries or [], enableWrapAround=True, content=eListboxPythonMultiContent)
-        self.l.setFont(0, gFont("Regular", E2D_FONT_TITLE))
-        self.l.setFont(1, gFont("Regular", E2D_FONT_SMALL))
-        self.l.setFont(2, gFont("Regular", E2D_FONT_BODY))
-        self.l.setItemHeight(E2D_ITEM_H)
-        self.l.setBuildFunc(self.build_entry)
-
-    def build_entry(self, key, title, subtitle, status, badge):
-        status_color = STATUS_COLORS.get(status, 0x008A9AA5)
-        height = E2D_ITEM_H - 8
-        title_y = 10 if E2D_FHD else 7
-        subtitle_y = 46 if E2D_FHD else 35
-        badge_w = 210 if E2D_FHD else 160
-        content_w = E2D_LIST_W
-        return [
-            None,
-            MultiContentEntryText(pos=(0, 4), size=(content_w, height), font=1, text="", backcolor=0x0015222B, backcolor_sel=0x00233B49),
-            MultiContentEntryText(pos=(0, 4), size=(9, height), font=1, text="", backcolor=status_color, backcolor_sel=status_color),
-            MultiContentEntryText(pos=(28, title_y), size=(content_w - badge_w - 50, 38), font=0, flags=RT_HALIGN_LEFT | RT_VALIGN_CENTER, text=title, color=0x00FFFFFF, color_sel=0x00FFFFFF, backcolor_sel=0x00233B49),
-            MultiContentEntryText(pos=(30, subtitle_y), size=(content_w - badge_w - 55, 28), font=1, flags=RT_HALIGN_LEFT | RT_VALIGN_CENTER, text=subtitle, color=0x009CB1BE, color_sel=0x00D7E5EC, backcolor_sel=0x00233B49),
-            MultiContentEntryText(pos=(content_w - badge_w - 20, 12), size=(badge_w, height - 16), font=2, flags=RT_HALIGN_RIGHT | RT_VALIGN_CENTER, text=badge, color=status_color, color_sel=status_color, backcolor_sel=0x00233B49),
-        ]
-
-
 class E2DoctorV2ResultList(MenuList):
     def __init__(self, entries=None):
         MenuList.__init__(self, entries or [], enableWrapAround=False, content=eListboxPythonMultiContent)
@@ -2632,179 +2007,6 @@ class E2DoctorV2ResultList(MenuList):
             MultiContentEntryText(pos=(24, 3), size=(E2D_LIST_W - 48, 30), font=0, flags=RT_HALIGN_LEFT | RT_VALIGN_CENTER, text="%s  %s" % (status_prefix(status), title), color=color, color_sel=color, backcolor_sel=0x00233B49),
             MultiContentEntryText(pos=(28, 32 if E2D_FHD else 26), size=(E2D_LIST_W - 56, 28), font=1, flags=RT_HALIGN_LEFT | RT_VALIGN_CENTER, text=summary, color=0x00B4C5CF, color_sel=0x00FFFFFF, backcolor_sel=0x00233B49),
         ]
-
-
-class E2DoctorTextScreen(Screen):
-    skin = standard_text_skin("E2DoctorTextScreen")
-
-    def __init__(self, session, title, text, status="E2 Doctor 2.0"):
-        Screen.__init__(self, session)
-        self["header_bg"] = Label("")
-        self["accent"] = Label("")
-        self["footer_bg"] = Label("")
-        self["title"] = Label(title)
-        self["status"] = Label(status)
-        self["body"] = ScrollLabel(text)
-        self["key_red"] = StaticText("Wróć")
-        self["key_green"] = StaticText("")
-        self["key_yellow"] = StaticText("")
-        self["key_blue"] = StaticText("Wyjście")
-        self["actions"] = ActionMap(
-            ["OkCancelActions", "ColorActions", "DirectionActions"],
-            {
-                "cancel": self.close, "red": self.close, "blue": self.close, "ok": self.close,
-                "up": self["body"].pageUp, "down": self["body"].pageDown,
-                "left": self["body"].pageUp, "right": self["body"].pageDown,
-            },
-            -1,
-        )
-
-
-class E2DoctorSolutionScreen(Screen):
-    skin = standard_text_skin("E2DoctorSolutionScreen")
-
-    def __init__(self, session, item):
-        Screen.__init__(self, session)
-        self.item = item
-        self.solution = get_solution(item)
-        self.action_name = self.solution.get("action")
-        self["header_bg"] = Label("")
-        self["accent"] = Label("")
-        self["footer_bg"] = Label("")
-        self["title"] = Label("Możliwe rozwiązanie")
-        self["status"] = Label("%s — %s" % (status_name(item.get("status")), item.get("title", "")))
-        self["body"] = ScrollLabel(build_solution_text(item, include_technical=False))
-        self["key_red"] = StaticText("Wróć")
-        self["key_green"] = StaticText(self.solution.get("action_label", "") if self.action_name else "")
-        self["key_yellow"] = StaticText("Dane techniczne")
-        self["key_blue"] = StaticText("Zapisz instrukcję")
-        self["actions"] = ActionMap(
-            ["OkCancelActions", "ColorActions", "DirectionActions"],
-            {
-                "cancel": self.close, "red": self.close, "green": self.perform_action,
-                "yellow": self.show_technical, "blue": self.save_instruction,
-                "up": self["body"].pageUp, "down": self["body"].pageDown,
-                "left": self["body"].pageUp, "right": self["body"].pageDown,
-            },
-            -1,
-        )
-
-    def show_technical(self):
-        self.session.open(E2DoctorTextScreen, "Dane techniczne — %s" % self.item.get("title", ""), self.item.get("details", "Brak danych technicznych."))
-
-    def save_instruction(self):
-        try:
-            path = save_solution_instruction(self.item)
-            self.session.open(MessageBox, "Instrukcję zapisano w:\n%s" % path, MessageBox.TYPE_INFO, timeout=8)
-        except Exception as error:
-            self.session.open(MessageBox, "Nie udało się zapisać instrukcji:\n%s" % error, MessageBox.TYPE_ERROR)
-
-    def perform_action(self):
-        if not self.action_name:
-            self.session.open(MessageBox, tr("no_safe_action"), MessageBox.TYPE_INFO, timeout=7)
-            return
-        confirmations = {
-            "repair_bouquet_refs": tr("confirm_repair_bouquets"),
-            "remove_opkg_lock": tr("confirm_remove_lock"),
-            "restart_oscam": tr("confirm_restart_oscam"),
-            "sync_time": tr("confirm_sync_time"),
-            "disable_suspect_plugin": "Tymczasowo wyłączyć podejrzaną wtyczkę %s?\n\nJej katalog zostanie jedynie przemianowany. Zmianę będzie można cofnąć w Narzędziach E2 Doctor. Po operacji wymagany jest restart GUI." % self.item.get("context", {}).get("plugin", ""),
-        }
-        if self.action_name in confirmations:
-            self.session.openWithCallback(self._confirmed_action, MessageBox, confirmations[self.action_name], MessageBox.TYPE_YESNO)
-        else:
-            self._execute_action()
-
-    def _confirmed_action(self, answer):
-        if answer:
-            self._execute_action()
-
-    def _success(self, message, changed=True):
-        self.session.openWithCallback(lambda *args: self.close(changed), MessageBox, message, MessageBox.TYPE_INFO, timeout=10)
-
-    def _execute_action(self):
-        try:
-            if self.action_name == "repair_bouquet_refs":
-                removed, backup_dir = repair_missing_bouquet_refs()
-                self._success("Usunięto błędne odwołania: %d\nKopia bezpieczeństwa:\n%s" % (removed, backup_dir))
-            elif self.action_name == "remove_opkg_lock":
-                removed = remove_inactive_opkg_locks()
-                if removed:
-                    self._success("Usunięto blokady OPKG:\n%s" % "\n".join(removed))
-                else:
-                    self.session.open(MessageBox, tr("lock_missing"), MessageBox.TYPE_INFO, timeout=6)
-            elif self.action_name == "restart_oscam":
-                command, _ = restart_oscam_service()
-                self._success("OSCam został uruchomiony ponownie.\nUżyte polecenie: %s" % command)
-            elif self.action_name == "sync_time":
-                command, _ = sync_system_time()
-                self._success("Uruchomiono synchronizację czasu.\nUżyte polecenie: %s" % command)
-            elif self.action_name == "network_test":
-                self.session.open(E2DoctorTextScreen, "Rozszerzony test sieci", network_diagnostic_text())
-            elif self.action_name == "show_processes":
-                self.session.open(E2DoctorTextScreen, "Procesy i pamięć RAM", top_memory_processes_text())
-            elif self.action_name == "find_large_files":
-                self.session.open(E2DoctorTextScreen, "Największe pliki", largest_files_text())
-            elif self.action_name == "disable_suspect_plugin":
-                original, disabled = disable_suspect_plugin(self.item.get("context") or {})
-                self._success("Wtyczka została tymczasowo wyłączona.\n\nOryginał: %s\nWyłączony katalog: %s\n\nWykonaj restart GUI. Zmianę można cofnąć w Narzędziach." % (original, disabled))
-            else:
-                self.session.open(MessageBox, "Nieznane działanie: %s" % self.action_name, MessageBox.TYPE_ERROR)
-        except Exception as error:
-            self.session.open(MessageBox, "Operacja nie powiodła się:\n%s" % error, MessageBox.TYPE_ERROR)
-
-
-class E2DoctorResultsScreen(Screen):
-    skin = results_skin()
-
-    def __init__(self, session, title, results, status_text=""):
-        Screen.__init__(self, session)
-        self.results = list(results or [])
-        self.changed = False
-        self["header_bg"] = Label("")
-        self["accent"] = Label("")
-        self["footer_bg"] = Label("")
-        self["title"] = Label(title)
-        counts = result_counts(self.results)
-        self["status"] = Label(status_text or "OK %d | Informacje %d | Ostrzeżenia %d | Błędy %d" % (
-            counts.get(STATUS_OK, 0), counts.get(STATUS_INFO, 0), counts.get(STATUS_WARN, 0), counts.get(STATUS_ERROR, 0)
-        ))
-        self["list"] = E2DoctorV2ResultList([])
-        self["key_red"] = StaticText("Wróć")
-        self["key_green"] = StaticText("Odczyt / pomoc")
-        self["key_yellow"] = StaticText("Raport")
-        self["key_blue"] = StaticText("Wyjście")
-        self["actions"] = ActionMap(
-            ["OkCancelActions", "ColorActions"],
-            {
-                "cancel": self.finish, "red": self.finish, "blue": self.finish,
-                "ok": self.open_selected, "green": self.open_selected, "yellow": self.save_report,
-            },
-            -1,
-        )
-        self.refresh_list()
-
-    def refresh_list(self):
-        self["list"].setList([(item.get("status"), item.get("title", ""), item.get("summary", "")) for item in self.results])
-
-    def open_selected(self):
-        index = self["list"].getSelectedIndex()
-        if 0 <= index < len(self.results):
-            self.session.openWithCallback(self.solution_closed, E2DoctorSolutionScreen, self.results[index])
-
-    def solution_closed(self, changed=False):
-        if changed:
-            self.changed = True
-
-    def save_report(self):
-        try:
-            path = make_report(self.results)
-            self.session.open(MessageBox, "Raport zapisano w:\n%s" % path, MessageBox.TYPE_INFO, timeout=9)
-        except Exception as error:
-            self.session.open(MessageBox, "Nie udało się utworzyć raportu:\n%s" % error, MessageBox.TYPE_ERROR)
-
-    def finish(self):
-        self.close(self.changed)
 
 
 class E2DoctorHistoryScreen(Screen):
@@ -3043,7 +2245,7 @@ class E2DoctorTools(Screen):
         self["status"] = Label("Ostatnia operacja do cofnięcia: %s" % (last_op.get("label") if last_op else "brak"))
         self.tool_entries = [
             ("Przeładuj listę kanałów", "reload", "Bez usuwania list i ustawień tunera"),
-            ("Usuń nieaktywną blokadę OPKG", "lock", "Tylko gdy OPKG nie jest uruchomiony"),
+            ("Sprawdź blokadę OPKG", "lock", "Tylko gdy OPKG nie jest uruchomiony"),
             ("Usuń stare crashlogi", "logs", "Pozostawia 3 najnowsze pliki"),
             ("Uruchom ponownie OSCam", "oscam", "Wyszukuje dostępny skrypt startowy"),
             ("Pokaż procesy zużywające RAM", "processes", "Diagnostyka bez kończenia procesów"),
@@ -3110,7 +2312,7 @@ class E2DoctorTools(Screen):
     def remove_lock(self):
         try:
             removed = remove_inactive_opkg_locks()
-            text = "Usunięto:\n%s" % "\n".join(removed) if removed else "Nie znaleziono nieaktywnej blokady OPKG."
+            text = "Usunięto:\n%s" % "\n".join(removed) if removed else "Brak aktywnej blokady OPKG. Sam plik blokady może pozostać i nie jest błędem."
             self.session.open(MessageBox, text, MessageBox.TYPE_INFO, timeout=7)
         except Exception as error:
             self.session.open(MessageBox, "Operacja nie powiodła się:\n%s" % error, MessageBox.TYPE_ERROR)
@@ -3171,203 +2373,6 @@ DASHBOARD_MODULES = [
     ("ipk", "E2 Safe Installer", "Analiza paczek IPK przed instalacją"),
     ("tools", "Bezpieczne narzędzia", "Naprawy, raport awaryjny, cofanie zmian i ustawienia"),
 ]
-
-
-def module_results(results, key):
-    if key == "problems":
-        return [item for item in results if item.get("status") in (STATUS_WARN, STATUS_ERROR)]
-    return [item for item in results if item.get("module") == key]
-
-
-def module_badge(results, key):
-    selected = module_results(results, key)
-    if key in ("history", "py3", "ipk", "tools"):
-        return STATUS_INFO, "OTWÓRZ"
-    if key == "problems" and not selected and results:
-        return STATUS_OK, "BRAK PROBLEMÓW"
-    if not selected:
-        return STATUS_INFO, "BRAK DANYCH"
-    worst = max((item.get("status", STATUS_INFO) for item in selected), key=lambda value: STATUS_RANK.get(value, 0))
-    errors = len([item for item in selected if item.get("status") == STATUS_ERROR])
-    warnings = len([item for item in selected if item.get("status") == STATUS_WARN])
-    if errors:
-        badge = "%d BŁĄD" % errors if errors == 1 else "%d BŁĘDY" % errors if 2 <= errors <= 4 else "%d BŁĘDÓW" % errors
-    elif warnings:
-        badge = "%d OSTRZEŻENIE" % warnings if warnings == 1 else "%d OSTRZEŻENIA" % warnings if 2 <= warnings <= 4 else "%d OSTRZEŻEŃ" % warnings
-    else:
-        badge = "DZIAŁA POPRAWNIE"
-    return worst, badge
-
-
-def module_subtitle(results, key, default):
-    selected = module_results(results, key)
-    problematic = [item for item in selected if item.get("status") in (STATUS_ERROR, STATUS_WARN)]
-    if problematic:
-        problematic.sort(key=lambda item: STATUS_RANK.get(item.get("status"), 0), reverse=True)
-        return problematic[0].get("summary", default)
-    return default
-
-
-class E2DoctorDashboard(Screen):
-    skin = dashboard_skin()
-
-    def __init__(self, session):
-        Screen.__init__(self, session)
-        self.results = []
-        self.settings = load_e2doctor_settings()
-        self._scan_started = False
-        self["header_bg"] = Label("")
-        self["accent"] = Label("")
-        self["score_bg"] = Label("")
-        self["ok_bg"] = Label("")
-        self["info_bg"] = Label("")
-        self["warn_bg"] = Label("")
-        self["error_bg"] = Label("")
-        self["footer_bg"] = Label("")
-        self["logo"] = Pixmap()
-        self["title"] = Label("E2 Doctor")
-        self["subtitle"] = Label("Centrum diagnostyki i bezpiecznej naprawy Enigma2")
-        self["change"] = Label("Gotowy do diagnostyki")
-        self["score_title"] = Label("WYNIK DIAGNOSTYKI")
-        self["score_value"] = Label("--/100")
-        self["score_grade"] = Label("BRAK SKANU")
-        self["score_bar"] = ProgressBar()
-        self["score_bar"].setValue(0)
-        self["ok_count"] = Label("0")
-        self["ok_label"] = Label("POPRAWNE")
-        self["info_count"] = Label("0")
-        self["info_label"] = Label("INFORMACJE")
-        self["warn_count"] = Label("0")
-        self["warn_label"] = Label("OSTRZEŻENIA")
-        self["error_count"] = Label("0")
-        self["error_label"] = Label("BŁĘDY")
-        self["dashboard"] = E2DoctorDashboardList([])
-        self["key_red"] = StaticText("Skanuj")
-        self["key_green"] = StaticText("Otwórz")
-        self["key_yellow"] = StaticText("Raport")
-        self["key_blue"] = StaticText("Wyjście")
-        self["footer"] = Label("E2 Doctor %s | Python 3 | by %s | MENU: ustawienia" % (PLUGIN_VERSION, PLUGIN_AUTHOR))
-        self["actions"] = ActionMap(
-            ["OkCancelActions", "ColorActions", "MenuActions", "InfoActions"],
-            {
-                "cancel": self.close, "blue": self.close,
-                "red": self.scan, "green": self.open_selected, "ok": self.open_selected,
-                "yellow": self.save_report, "menu": self.open_settings, "info": self.open_tools,
-            },
-            -1,
-        )
-        self.refresh_dashboard()
-        self.onShown.append(self.first_show)
-
-    def first_show(self):
-        if self._scan_started:
-            return
-        self._scan_started = True
-        self.settings = load_e2doctor_settings()
-        if self.settings.get("auto_scan", True):
-            self.scan()
-        else:
-            self["change"].setText("Automatyczny skan jest wyłączony. Naciśnij czerwony przycisk.")
-
-    def scan(self):
-        self["change"].setText("Trwa pełna diagnostyka systemu...")
-        try:
-            previous_history = load_history()
-            self.results = run_all_checks(self.session)
-            current = compact_snapshot(self.results)
-            previous = previous_history[0] if previous_history else None
-            change_text = compare_snapshots(current, previous)
-            save_history_snapshot(self.results)
-            self.update_summary(change_text)
-            self.refresh_dashboard()
-        except Exception as error:
-            self["change"].setText("Błąd diagnostyki: %s" % error)
-            self.session.open(MessageBox, "Diagnostyka nie powiodła się:\n%s\n\n%s" % (error, traceback.format_exc()), MessageBox.TYPE_ERROR)
-
-    def update_summary(self, change_text=None):
-        counts = result_counts(self.results)
-        score = calculate_health_score(self.results)
-        grade = health_grade(score)
-        self["score_value"].setText("%d/100" % score)
-        self["score_grade"].setText(grade)
-        self["score_bar"].setValue(score)
-        self["ok_count"].setText(str(counts.get(STATUS_OK, 0)))
-        self["info_count"].setText(str(counts.get(STATUS_INFO, 0)))
-        self["warn_count"].setText(str(counts.get(STATUS_WARN, 0)))
-        self["error_count"].setText(str(counts.get(STATUS_ERROR, 0)))
-        self["change"].setText(change_text or current_change_summary(self.results))
-
-    def refresh_dashboard(self):
-        rows = []
-        for key, title, default_subtitle in DASHBOARD_MODULES:
-            status, badge = module_badge(self.results, key)
-            subtitle = module_subtitle(self.results, key, default_subtitle)
-            rows.append((key, title, subtitle, status, badge))
-        self["dashboard"].setList(rows)
-
-    def selected_key(self):
-        index = self["dashboard"].getSelectedIndex()
-        if 0 <= index < len(DASHBOARD_MODULES):
-            return DASHBOARD_MODULES[index][0]
-        return None
-
-    def open_selected(self):
-        key = self.selected_key()
-        if not key:
-            return
-        if key == "history":
-            self.session.open(E2DoctorHistoryScreen)
-        elif key == "py3":
-            self["change"].setText("Trwa skanowanie zgodności wtyczek z Pythonem 3...")
-            try:
-                report = python3_compatibility_report()
-                self.session.open(E2DoctorTextScreen, "Zgodność z Pythonem 3", report, "Analiza bez modyfikowania plików")
-            except Exception as error:
-                self.session.open(MessageBox, "Skan zgodności nie powiódł się:\n%s" % error, MessageBox.TYPE_ERROR)
-            finally:
-                self["change"].setText(current_change_summary(self.results) if self.results else "Gotowy")
-        elif key == "ipk":
-            self.session.open(E2DoctorIPKBrowser)
-        elif key == "tools":
-            self.open_tools()
-        else:
-            if not self.results:
-                self.scan()
-            selected = module_results(self.results, key)
-            if not selected:
-                self.session.open(MessageBox, "Brak wyników dla wybranego modułu.", MessageBox.TYPE_INFO, timeout=5)
-                return
-            title = next((item[1] for item in DASHBOARD_MODULES if item[0] == key), "Wyniki diagnostyki")
-            self.session.openWithCallback(self.results_closed, E2DoctorResultsScreen, title, selected)
-
-    def results_closed(self, changed=False):
-        if changed:
-            self.scan()
-
-    def save_report(self):
-        if not self.results:
-            self.scan()
-        if not self.results:
-            return
-        try:
-            path = make_report(self.results)
-            self.session.open(MessageBox, "Raport zapisano w:\n%s" % path, MessageBox.TYPE_INFO, timeout=9)
-        except Exception as error:
-            self.session.open(MessageBox, "Nie udało się utworzyć raportu:\n%s" % error, MessageBox.TYPE_ERROR)
-
-    def open_tools(self):
-        self.session.openWithCallback(self.tools_closed, E2DoctorTools)
-
-    def tools_closed(self, changed=False):
-        if changed:
-            self.scan()
-
-    def open_settings(self):
-        self.session.openWithCallback(self.settings_closed, E2DoctorSettingsScreen)
-
-    def settings_closed(self, changed=False):
-        if changed:
-            self.settings = load_e2doctor_settings()
 
 
 class E2DoctorMonitor(object):
@@ -3464,27 +2469,18 @@ E2D_MONITORS = []
 
 
 def session_start(reason, session=None, **kwargs):
-    if reason == 0 and session is not None and eTimer is not None:
-        try:
-            E2D_MONITORS.append(E2DoctorMonitor(session))
-        except Exception:
-            pass
+    if reason == 0 and session is not None and eTimer is not None and not E2D_MONITORS:
+        E2D_MONITORS.append(E2DoctorMonitor(session))
+    elif reason != 0:
+        for monitor in E2D_MONITORS:
+            if monitor.timer is not None:
+                monitor.timer.stop()
+        E2D_MONITORS[:] = []
 
 
 def main(session, **kwargs):
     session.open(E2DoctorDashboard)
 
-
-def Plugins(**kwargs):
-    descriptors = [
-        PluginDescriptor(name="E2 Doctor", description="Centrum diagnostyki i bezpiecznej naprawy Enigma2", where=PluginDescriptor.WHERE_PLUGINMENU, icon="plugin.png", fnc=main),
-        PluginDescriptor(name="E2 Doctor", description="Centrum diagnostyki i bezpiecznej naprawy Enigma2", where=PluginDescriptor.WHERE_EXTENSIONSMENU, fnc=main),
-    ]
-    try:
-        descriptors.append(PluginDescriptor(where=PluginDescriptor.WHERE_SESSIONSTART, fnc=session_start))
-    except Exception:
-        pass
-    return descriptors
 
 # -----------------------------------------------------------------------------
 # E2 Doctor 2.1 - interfejs premium i centrum naprawy kontekstowej
@@ -3559,48 +2555,16 @@ def safe_ram_refresh():
 
 
 def safe_flash_cleanup_candidates():
-    """Zwraca tylko ściśle określone, bezpieczne pliki z głównego flasha."""
-    candidates = {}
-
-    # Stare crashlogi - trzy najnowsze pozostają nietknięte.
-    logs = find_crashlogs()
-    for path in logs[3:]:
-        if os.path.isfile(path) and _is_on_root_filesystem(path):
-            candidates[os.path.realpath(path)] = "stary crashlog"
-
-    # Pobrane archiwa OPKG. Nie usuwamy baz pakietów ani list repozytoriów.
-    for pattern in (
-        "/var/cache/opkg/*.ipk",
-        "/var/cache/opkg/archives/*.ipk",
-        "/home/root/*.ipk.part",
-        "/home/root/*.ipk.tmp",
-    ):
-        for path in glob.glob(pattern):
-            if os.path.isfile(path) and _is_on_root_filesystem(path):
-                candidates[os.path.realpath(path)] = "pobrany plik tymczasowy OPKG"
-
-    # Zrzuty pamięci po awarii. Ograniczamy się do katalogu domowego i /tmp.
-    for pattern in (
-        "/home/root/core",
-        "/home/root/core.*",
-        "/home/root/*.core",
-        "/home/root/enigma2.core*",
-        "/tmp/core",
-        "/tmp/core.*",
-        "/tmp/*.core",
-    ):
-        for path in glob.glob(pattern):
-            if os.path.isfile(path) and _is_on_root_filesystem(path):
-                candidates[os.path.realpath(path)] = "zrzut pamięci po awarii"
-
     entries = []
-    for path, category in candidates.items():
+    for path in find_crashlogs()[3:]:
         try:
-            entries.append({"path": path, "category": category, "size": _file_size(path)})
-        except Exception:
+            info = os.lstat(path)
+            if stat.S_ISREG(info.st_mode) and _is_on_root_filesystem(path) and time.time() - info.st_mtime > 86400:
+                entries.append({"path": path, "category": "stary crashlog", "size": info.st_size,
+                                "identity": [info.st_dev, info.st_ino, info.st_size, info.st_mtime]})
+        except OSError:
             pass
-    entries.sort(key=lambda item: item.get("size", 0), reverse=True)
-    return entries
+    return sorted(entries, key=lambda item: item["size"], reverse=True)
 
 
 def safe_flash_cleanup_preview():
@@ -3610,7 +2574,7 @@ def safe_flash_cleanup_preview():
         "BEZPIECZNE CZYSZCZENIE PAMIĘCI FLASH",
         "",
         "E2 Doctor nie usuwa ustawień Enigma2, list kanałów, EPG, piconów, wtyczek ani konfiguracji OSCam.",
-        "Usuwane mogą być wyłącznie stare crashlogi, pobrane archiwa OPKG i zrzuty pamięci po awarii.",
+        "Usuwane mogą być wyłącznie crashlogi starsze niż 24 godziny (z zachowaniem trzech najnowszych).",
         "",
         "Znaleziono: %d plików | możliwe do odzyskania: %s" % (len(entries), format_bytes(total)),
         "",
@@ -3626,27 +2590,24 @@ def safe_flash_cleanup_preview():
 
 
 def perform_safe_flash_cleanup(entries=None):
-    entries = list(entries if entries is not None else safe_flash_cleanup_candidates())
-    removed = []
-    failed = []
-    recovered = 0
+    current = {x["path"]: x for x in safe_flash_cleanup_candidates()}
+    entries = list(entries if entries is not None else current.values())
+    removed, failed, recovered = [], [], 0
     for item in entries:
         path = item.get("path", "")
-        if not path or not os.path.isfile(path) or not _is_on_root_filesystem(path):
+        fresh = current.get(path)
+        if not fresh or fresh.get("identity") != item.get("identity"):
             continue
         try:
-            size = _file_size(path)
+            info = os.lstat(path)
+            if [info.st_dev, info.st_ino, info.st_size, info.st_mtime] != item["identity"] or not stat.S_ISREG(info.st_mode):
+                continue
             os.unlink(path)
             removed.append(path)
-            recovered += size
-        except Exception as exc:
-            failed.append("%s: %s" % (path, exc))
-    record_operation(
-        "Bezpieczne czyszczenie pamięci flash",
-        "information",
-        {"removed": removed, "failed": failed, "recovered": recovered},
-        False,
-    )
+            recovered += info.st_size
+        except OSError as error:
+            failed.append("%s: %s" % (path, error))
+    record_operation("Czyszczenie starych crashlogów", "information", {"removed": removed, "failed": failed, "recovered": recovered}, False)
     return removed, failed, recovered
 
 
@@ -3675,7 +2636,7 @@ def storage_diagnostic_text():
 ACTION_REGISTRY = {
     "safe_flash_cleanup": {
         "title": "Bezpiecznie oczyść pamięć flash",
-        "description": "Usuń wyłącznie stare crashlogi, archiwa OPKG i zrzuty pamięci. Ustawienia oraz dane Enigma2 pozostają bez zmian.",
+        "description": "Usuń wyłącznie crashlogi starsze niż 24 godziny. Ustawienia oraz dane Enigma2 pozostają bez zmian.",
         "status": STATUS_WARN,
         "mutating": True,
     },
@@ -3710,7 +2671,7 @@ ACTION_REGISTRY = {
         "mutating": True,
     },
     "remove_opkg_lock": {
-        "title": "Usuń nieaktywną blokadę OPKG",
+        "title": "Sprawdź blokadę OPKG",
         "description": "Usuń blokadę tylko wtedy, gdy menedżer pakietów nie jest uruchomiony.",
         "status": STATUS_WARN,
         "mutating": True,
@@ -3835,35 +2796,6 @@ def quick_repair_entries(results):
     return entries
 
 
-def action_title(action_name):
-    return ACTION_REGISTRY.get(action_name, {}).get("title", action_name)
-
-
-def action_description(action_name):
-    return ACTION_REGISTRY.get(action_name, {}).get("description", "")
-
-
-def action_button_label(action_name):
-    labels = {
-        "safe_flash_cleanup": "Oczyść flash",
-        "find_large_files": "Duże pliki",
-        "safe_ram_refresh": "Odśwież RAM",
-        "show_processes": "Procesy RAM",
-        "repair_bouquet_refs": "Napraw bukiety",
-        "reload_bouquets": "Przeładuj listę",
-        "remove_opkg_lock": "Usuń blokadę",
-        "restart_oscam": "Restart OSCam",
-        "sync_time": "Synchronizuj czas",
-        "network_test": "Test sieci",
-        "disable_suspect_plugin": "Wyłącz wtyczkę",
-        "cleanup_crashlogs": "Usuń stare logi",
-        "emergency_report": "Raport awaryjny",
-        "storage_diagnostic": "Diagnostyka",
-        "restart_gui": "Restart GUI",
-    }
-    return labels.get(action_name, action_title(action_name))
-
-
 class E2DoctorActionMixin(object):
     def request_action(self, action_name, item=None, on_done=None):
         self._e2d_pending_action = action_name
@@ -3878,7 +2810,7 @@ class E2DoctorActionMixin(object):
                 return
             text = (
                 "E2 Doctor znalazł %d bezpiecznych plików o łącznym rozmiarze %s.\n\n"
-                "Usunięte zostaną wyłącznie stare crashlogi, archiwa OPKG i zrzuty pamięci. "
+                "Usunięte zostaną wyłącznie crashlogi starsze niż 24 godziny. "
                 "Ustawienia, listy kanałów, wtyczki, EPG i picony pozostaną bez zmian.\n\nKontynuować?"
             ) % (len(entries), format_bytes(total))
             self.session.openWithCallback(self._confirmed_action, MessageBox, text, MessageBox.TYPE_YESNO)
@@ -3890,7 +2822,7 @@ class E2DoctorActionMixin(object):
             "remove_opkg_lock": tr("confirm_remove_lock"),
             "restart_oscam": tr("confirm_restart_oscam"),
             "sync_time": tr("confirm_sync_time"),
-            "disable_suspect_plugin": "Tymczasowo wyłączyć podejrzaną wtyczkę %s?\n\nKatalog zostanie jedynie przemianowany. Operację można cofnąć w Narzędziach E2 Doctor." % (item or {}).get("context", {}).get("plugin", ""),
+            "disable_suspect_plugin": "Tymczasowo wyłączyć podejrzaną wtyczkę %s?\n\nKatalog zostanie przeniesiony poza katalogi skanowane przez Enigma2. Operację można cofnąć w Narzędziach E2 Doctor." % (item or {}).get("context", {}).get("plugin", ""),
             "cleanup_crashlogs": "Usunąć stare crashlogi i pozostawić trzy najnowsze?",
             "reload_bouquets": "Przeładować listę kanałów bez usuwania ustawień i bukietów?",
             "restart_gui": "Uruchomić ponownie GUI Enigma2?\n\nPrzed wykonaniem zakończ trwające nagrania i ważne operacje.",
@@ -3916,7 +2848,7 @@ class E2DoctorActionMixin(object):
         box_type = MessageBox.TYPE_ERROR if error else MessageBox.TYPE_INFO
         self.session.openWithCallback(lambda *args: self._finish_action(changed), MessageBox, message, box_type, timeout=10 if not error else 0)
 
-    def _open_action_text(self, title, text, status="E2 Doctor 2.3"):
+    def _open_action_text(self, title, text, status="E2 Doctor 2.4.1"):
         self.session.openWithCallback(lambda *args: self._finish_action(False), E2DoctorTextScreen, title, text, status)
 
     def _execute_pending_action(self):
@@ -3953,7 +2885,7 @@ class E2DoctorActionMixin(object):
                 if removed:
                     self._show_action_message("Usunięto nieaktywne blokady OPKG:\n%s" % "\n".join(removed), True)
                 else:
-                    self._show_action_message("Nie znaleziono nieaktywnej blokady OPKG.", False)
+                    self._show_action_message("Brak aktywnej blokady OPKG. Sam plik blokady może pozostać i nie jest błędem.", False)
             elif action == "restart_oscam":
                 command, _ = restart_oscam_service()
                 self._show_action_message("OSCam został uruchomiony ponownie.\nUżyte polecenie: %s" % command, True)
@@ -4063,16 +2995,16 @@ def dashboard_skin_21():
     <screen name="E2DoctorDashboard" position="center,center" size="%(w)d,%(h)d" title="E2 Doctor" backgroundColor="#08131A" flags="wfNoBorder">
         <widget name="header_bg" position="0,0" size="%(w)d,%(header_h)d" backgroundColor="#112734" transparent="0" />
         <widget name="top_glow" position="0,0" size="%(w)d,6" backgroundColor="#29D4DE" transparent="0" />
-        <widget name="accent" position="0,0" size="12,%(header_h)d" backgroundColor="#2AD0D9" transparent="0" />
+        <widget name="accent" position="0,0" size="12,%(header_h)d" backgroundColor="#00BCE8" transparent="0" />
         <widget name="logo_panel" position="%(m)d,%(logo_panel_y)d" size="%(logo_panel)d,%(logo_panel)d" backgroundColor="#0B1D27" transparent="0" />
-        <widget name="logo_line" position="%(m)d,%(logo_line_y)d" size="%(logo_panel)d,4" backgroundColor="#2AD0D9" transparent="0" />
+        <widget name="logo_line" position="%(m)d,%(logo_line_y)d" size="%(logo_panel)d,4" backgroundColor="#00BCE8" transparent="0" />
         <widget name="logo" position="%(logo_x)d,%(logo_y)d" size="%(logo)d,%(logo)d" pixmap="%(logo_path)s" alphatest="blend" />
         <widget name="brand_badge" position="%(title_x)d,%(badge_y)d" size="%(title_w)d,30" font="Regular;%(tiny)d" foregroundColor="#5EE6EE" />
         <widget name="title" position="%(title_x)d,%(title_y)d" size="%(title_w)d,58" font="Regular;%(main_title)d" foregroundColor="#FFFFFF" />
         <widget name="subtitle" position="%(title_x)d,%(subtitle_y)d" size="%(title_w)d,38" font="Regular;%(body)d" foregroundColor="#B4C9D4" />
         <widget name="change" position="%(title_x)d,%(change_y)d" size="%(title_w)d,34" font="Regular;%(small)d" foregroundColor="#78DCE4" />
         <widget name="score_bg" position="%(score_x)d,%(score_y)d" size="%(score_w)d,%(score_h)d" backgroundColor="#081820" transparent="0" />
-        <widget name="score_top" position="%(score_x)d,%(score_y)d" size="%(score_w)d,5" backgroundColor="#2AD0D9" transparent="0" />
+        <widget name="score_top" position="%(score_x)d,%(score_y)d" size="%(score_w)d,5" backgroundColor="#00BCE8" transparent="0" />
         <widget name="score_title" position="%(score_x2)d,%(score_title_y)d" size="%(score_w2)d,32" font="Regular;%(small)d" halign="center" foregroundColor="#A4BBC8" />
         <widget name="score_value" position="%(score_x2)d,%(score_value_y)d" size="%(score_w2)d,60" font="Regular;%(score_font)d" halign="center" foregroundColor="#FFFFFF" />
         <widget name="score_grade" position="%(score_x2)d,%(score_grade_y)d" size="%(score_w2)d,32" font="Regular;%(small)d" halign="center" foregroundColor="#62E28B" />
@@ -4094,7 +3026,7 @@ def dashboard_skin_21():
         <widget name="error_count" position="%(card4_x)d,%(count_y)d" size="%(card_w)d,38" font="Regular;%(count_font)d" halign="center" foregroundColor="#FF737A" />
         <widget name="error_label" position="%(card4_x)d,%(label_y)d" size="%(card_w)d,27" font="Regular;%(small)d" halign="center" foregroundColor="#E9C0C4" />
         <widget name="recommend_bg" position="%(m)d,%(banner_y)d" size="%(content_w)d,%(banner_h)d" backgroundColor="#173443" transparent="0" />
-        <widget name="recommend_line" position="%(m)d,%(banner_y)d" size="8,%(banner_h)d" backgroundColor="#2AD0D9" transparent="0" />
+        <widget name="recommend_line" position="%(m)d,%(banner_y)d" size="8,%(banner_h)d" backgroundColor="#00BCE8" transparent="0" />
         <widget name="recommendation" position="%(recommend_x)d,%(recommend_text_y)d" size="%(recommend_w)d,30" font="Regular;%(small)d" foregroundColor="#E5F6F8" />
         <widget name="dashboard" position="%(m)d,%(list_y)d" size="%(content_w)d,%(list_h)d" scrollbarMode="showOnDemand" />
         <widget name="footer_bg" position="0,%(footer_bg_y)d" size="%(w)d,%(footer_bg_h)d" backgroundColor="#0F222C" transparent="0" />
@@ -4130,316 +3062,14 @@ def dashboard_skin_21():
     }
 
 
-class E2DoctorDashboardList(MenuList):
-    def __init__(self, entries=None):
-        MenuList.__init__(self, entries or [], enableWrapAround=True, content=eListboxPythonMultiContent)
-        self.l.setFont(0, gFont("Regular", E2D_FONT_TITLE))
-        self.l.setFont(1, gFont("Regular", E2D_FONT_SMALL))
-        self.l.setFont(2, gFont("Regular", E2D_FONT_BODY))
-        self.l.setFont(3, gFont("Regular", E2D_FONT_TINY))
-        self.l.setItemHeight(74 if E2D_FHD else 57)
-        self.l.setBuildFunc(self.build_entry)
-
-    def build_entry(self, key, code, title, subtitle, status, badge):
-        status_color = STATUS_COLORS.get(status, 0x008A9AA5)
-        item_h = 74 if E2D_FHD else 57
-        content_w = E2D_LIST_W
-        badge_w = 226 if E2D_FHD else 172
-        code_w = 72 if E2D_FHD else 56
-        title_y = 8 if E2D_FHD else 4
-        subtitle_y = 42 if E2D_FHD else 29
-        return [
-            None,
-            MultiContentEntryText(pos=(0, 2), size=(content_w, item_h - 4), font=1, text="", backcolor=0x0013212A, backcolor_sel=0x00243E4B),
-            MultiContentEntryText(pos=(0, 2), size=(7, item_h - 4), font=1, text="", backcolor=status_color, backcolor_sel=status_color),
-            MultiContentEntryText(pos=(18, 10 if E2D_FHD else 8), size=(code_w, item_h - (20 if E2D_FHD else 16)), font=3, flags=RT_HALIGN_CENTER | RT_VALIGN_CENTER, text=code, color=0x00FFFFFF, color_sel=0x00FFFFFF, backcolor=status_color, backcolor_sel=status_color),
-            MultiContentEntryText(pos=(code_w + 34, title_y), size=(content_w - code_w - badge_w - 66, 36), font=0, flags=RT_HALIGN_LEFT | RT_VALIGN_CENTER, text=title, color=0x00FFFFFF, color_sel=0x00FFFFFF, backcolor_sel=0x00243E4B),
-            MultiContentEntryText(pos=(code_w + 36, subtitle_y), size=(content_w - code_w - badge_w - 70, 26), font=1, flags=RT_HALIGN_LEFT | RT_VALIGN_CENTER, text=subtitle, color=0x009CB3BF, color_sel=0x00E1F1F5, backcolor_sel=0x00243E4B),
-            MultiContentEntryText(pos=(content_w - badge_w - 18, 8), size=(badge_w, item_h - 16), font=2, flags=RT_HALIGN_RIGHT | RT_VALIGN_CENTER, text=badge, color=status_color, color_sel=status_color, backcolor_sel=0x00243E4B),
-        ]
-
-
-class E2DoctorTextScreen(Screen):
-    skin = premium_text_skin("E2DoctorTextScreen")
-
-    def __init__(self, session, title, text, status="E2 Doctor 2.3"):
-        Screen.__init__(self, session)
-        self["header_bg"] = Label("")
-        self["accent"] = Label("")
-        self["footer_bg"] = Label("")
-        self["title"] = Label(title)
-        self["status"] = Label(status)
-        self["body"] = ScrollLabel(text)
-        self["key_red"] = StaticText("Wróć")
-        self["key_green"] = StaticText("")
-        self["key_yellow"] = StaticText("")
-        self["key_blue"] = StaticText("Wyjście")
-        self["actions"] = ActionMap(
-            ["OkCancelActions", "ColorActions", "DirectionActions"],
-            {
-                "cancel": self.close, "red": self.close, "blue": self.close, "ok": self.close,
-                "up": self["body"].pageUp, "down": self["body"].pageDown,
-                "left": self["body"].pageUp, "right": self["body"].pageDown,
-            },
-            -1,
-        )
-
-
-class E2DoctorProblemActionsScreen(E2DoctorActionMixin, Screen):
-    skin = premium_results_skin("E2DoctorProblemActionsScreen")
-
-    def __init__(self, session, item, title="Działania dla problemu"):
-        Screen.__init__(self, session)
-        self.item = item or {}
-        self.changed = False
-        self.actions_list = available_problem_actions(self.item)
-        self["header_bg"] = Label("")
-        self["accent"] = Label("")
-        self["footer_bg"] = Label("")
-        self["title"] = Label(title)
-        self["status"] = Label("Wybierz działanie. Każda zmiana wymaga potwierdzenia użytkownika.")
-        rows = []
-        for action in self.actions_list:
-            meta = ACTION_REGISTRY.get(action, {})
-            rows.append((meta.get("status", STATUS_INFO), meta.get("title", action), meta.get("description", "")))
-        if not rows:
-            rows.append((STATUS_INFO, "Brak bezpiecznej automatycznej naprawy", "Skorzystaj z instrukcji ręcznej pokazanej przez E2 Doctor."))
-        self["list"] = E2DoctorV2ResultList(rows)
-        self["key_red"] = StaticText("Wróć")
-        self["key_green"] = StaticText("Wykonaj")
-        self["key_yellow"] = StaticText("Opis")
-        self["key_blue"] = StaticText("Wyjście")
-        self["actions"] = ActionMap(
-            ["OkCancelActions", "ColorActions"],
-            {
-                "cancel": self.finish, "red": self.finish, "blue": self.finish,
-                "ok": self.execute_selected, "green": self.execute_selected, "yellow": self.show_selected,
-            },
-            -1,
-        )
-
-    def selected_action(self):
-        index = self["list"].getSelectedIndex()
-        if 0 <= index < len(self.actions_list):
-            return self.actions_list[index]
-        return None
-
-    def show_selected(self):
-        action = self.selected_action()
-        if not action:
-            return
-        meta = ACTION_REGISTRY.get(action, {})
-        text = "%s\n\n%s\n\nWYKRYTY PROBLEM\n%s\n%s" % (
-            meta.get("title", action), meta.get("description", ""),
-            self.item.get("title", ""), self.item.get("summary", ""),
-        )
-        self.session.open(E2DoctorTextScreen, "Opis działania", text, "E2 Doctor — bezpieczna naprawa")
-
-    def execute_selected(self):
-        action = self.selected_action()
-        if action:
-            self.request_action(action, self.item, self.action_finished)
-
-    def action_finished(self, changed=False):
-        self.changed = self.changed or bool(changed)
-
-    def finish(self):
-        self.close(self.changed)
-
-
-class E2DoctorSolutionScreen(E2DoctorActionMixin, Screen):
-    skin = premium_text_skin("E2DoctorSolutionScreen")
-
-    def __init__(self, session, item):
-        Screen.__init__(self, session)
-        self.item = item
-        self.solution = get_solution(item)
-        self.actions_list = available_problem_actions(item)
-        self.primary_action = self.actions_list[0] if self.actions_list else None
-        self["header_bg"] = Label("")
-        self["accent"] = Label("")
-        self["footer_bg"] = Label("")
-        self["title"] = Label("Diagnoza i możliwe rozwiązanie")
-        self["status"] = Label("%s — %s" % (status_name(item.get("status")), item.get("title", "")))
-        self["body"] = ScrollLabel(build_solution_text(item, include_technical=False))
-        self["key_red"] = StaticText("Wróć")
-        self["key_green"] = StaticText(action_button_label(self.primary_action) if self.primary_action else "Brak auto-naprawy")
-        self["key_yellow"] = StaticText("Dane techniczne")
-        self["key_blue"] = StaticText("Działania" if self.actions_list else "Zapisz instrukcję")
-        self["actions"] = ActionMap(
-            ["OkCancelActions", "ColorActions", "DirectionActions", "InfoActions", "MenuActions"],
-            {
-                "cancel": self.close, "red": self.close, "green": self.perform_primary,
-                "yellow": self.show_technical, "blue": self.open_actions_or_save,
-                "info": self.save_instruction, "menu": self.save_instruction,
-                "up": self["body"].pageUp, "down": self["body"].pageDown,
-                "left": self["body"].pageUp, "right": self["body"].pageDown,
-            },
-            -1,
-        )
-
-    def perform_primary(self):
-        if not self.primary_action:
-            self.session.open(MessageBox, tr("no_safe_action"), MessageBox.TYPE_INFO, timeout=7)
-            return
-        self.request_action(self.primary_action, self.item, self.primary_finished)
-
-    def primary_finished(self, changed=False):
-        if changed:
-            self.close(True)
-
-    def open_actions_or_save(self):
-        if self.actions_list:
-            self.session.openWithCallback(self.actions_closed, E2DoctorProblemActionsScreen, self.item)
-        else:
-            self.save_instruction()
-
-    def actions_closed(self, changed=False):
-        if changed:
-            self.close(True)
-
-    def show_technical(self):
-        self.session.open(E2DoctorTextScreen, "Dane techniczne — %s" % self.item.get("title", ""), self.item.get("details", "Brak danych technicznych."), "Surowe dane diagnostyczne")
-
-    def save_instruction(self):
-        try:
-            path = save_solution_instruction(self.item)
-            self.session.open(MessageBox, "Instrukcję zapisano w:\n%s" % path, MessageBox.TYPE_INFO, timeout=8)
-        except Exception as error:
-            self.session.open(MessageBox, "Nie udało się zapisać instrukcji:\n%s" % error, MessageBox.TYPE_ERROR)
-
-
-class E2DoctorResultsScreen(Screen):
-    skin = premium_results_skin("E2DoctorResultsScreen")
-
-    def __init__(self, session, title, results, status_text=""):
-        Screen.__init__(self, session)
-        self.results = list(results or [])
-        self.changed = False
-        self["header_bg"] = Label("")
-        self["accent"] = Label("")
-        self["footer_bg"] = Label("")
-        self["title"] = Label(title)
-        counts = result_counts(self.results)
-        self["status"] = Label(status_text or "OK %d | Informacje %d | Ostrzeżenia %d | Błędy %d" % (
-            counts.get(STATUS_OK, 0), counts.get(STATUS_INFO, 0), counts.get(STATUS_WARN, 0), counts.get(STATUS_ERROR, 0)
-        ))
-        self["list"] = E2DoctorV2ResultList([])
-        self["key_red"] = StaticText("Wróć")
-        self["key_green"] = StaticText("Odczyt / naprawa")
-        self["key_yellow"] = StaticText("Raport")
-        self["key_blue"] = StaticText("Wyjście")
-        self["actions"] = ActionMap(
-            ["OkCancelActions", "ColorActions"],
-            {
-                "cancel": self.finish, "red": self.finish, "blue": self.finish,
-                "ok": self.open_selected, "green": self.open_selected, "yellow": self.save_report,
-            },
-            -1,
-        )
-        self.refresh_list()
-
-    def refresh_list(self):
-        self["list"].setList([(item.get("status"), item.get("title", ""), item.get("summary", "")) for item in self.results])
-
-    def open_selected(self):
-        index = self["list"].getSelectedIndex()
-        if 0 <= index < len(self.results):
-            self.session.openWithCallback(self.solution_closed, E2DoctorSolutionScreen, self.results[index])
-
-    def solution_closed(self, changed=False):
-        if changed:
-            self.changed = True
-
-    def save_report(self):
-        try:
-            path = make_report(self.results)
-            self.session.open(MessageBox, "Raport zapisano w:\n%s" % path, MessageBox.TYPE_INFO, timeout=9)
-        except Exception as error:
-            self.session.open(MessageBox, "Nie udało się utworzyć raportu:\n%s" % error, MessageBox.TYPE_ERROR)
-
-    def finish(self):
-        self.close(self.changed)
-
-
-class E2DoctorQuickRepairScreen(E2DoctorActionMixin, Screen):
-    skin = premium_results_skin("E2DoctorQuickRepairScreen")
-
-    def __init__(self, session, results):
-        Screen.__init__(self, session)
-        self.results = list(results or [])
-        self.entries = quick_repair_entries(self.results)
-        self.changed = False
-        self["header_bg"] = Label("")
-        self["accent"] = Label("")
-        self["footer_bg"] = Label("")
-        self["title"] = Label("Centrum szybkiej naprawy")
-        self["status"] = Label("Dostępne działania: %d | Nic nie zostanie wykonane bez potwierdzenia" % len(self.entries))
-        rows = []
-        for entry in self.entries:
-            action = entry.get("action")
-            item = entry.get("item") or {}
-            meta = ACTION_REGISTRY.get(action, {})
-            rows.append((meta.get("status", STATUS_INFO), meta.get("title", action), "Problem: %s — %s" % (item.get("title", ""), item.get("summary", ""))))
-        if not rows:
-            rows.append((STATUS_OK, "Brak problemów wymagających bezpiecznej naprawy", "System nie zgłasza działań, które E2 Doctor może wykonać automatycznie."))
-        self["list"] = E2DoctorV2ResultList(rows)
-        self["key_red"] = StaticText("Wróć")
-        self["key_green"] = StaticText("Wykonaj")
-        self["key_yellow"] = StaticText("Opis")
-        self["key_blue"] = StaticText("Wyjście")
-        self["actions"] = ActionMap(
-            ["OkCancelActions", "ColorActions"],
-            {
-                "cancel": self.finish, "red": self.finish, "blue": self.finish,
-                "ok": self.execute_selected, "green": self.execute_selected, "yellow": self.show_selected,
-            },
-            -1,
-        )
-
-    def selected_entry(self):
-        index = self["list"].getSelectedIndex()
-        if 0 <= index < len(self.entries):
-            return self.entries[index]
-        return None
-
-    def show_selected(self):
-        entry = self.selected_entry()
-        if not entry:
-            return
-        action = entry.get("action")
-        item = entry.get("item") or {}
-        text = "%s\n\n%s\n\nWYKRYTY PROBLEM\n%s\n%s\n\nDane techniczne:\n%s" % (
-            action_title(action), action_description(action), item.get("title", ""), item.get("summary", ""), item.get("details", "")
-        )
-        self.session.open(E2DoctorTextScreen, "Podgląd działania", text, "E2 Doctor nie wykonał jeszcze żadnej zmiany")
-
-    def execute_selected(self):
-        entry = self.selected_entry()
-        if entry:
-            self.request_action(entry.get("action"), entry.get("item"), self.action_finished)
-
-    def action_finished(self, changed=False):
-        self.changed = self.changed or bool(changed)
-
-    def finish(self):
-        self.close(self.changed)
-
-
 # Zachowujemy funkcjonalność ekranów 2.0, ale nadajemy im spójny wygląd 2.1.
 _E2DoctorHistoryScreen20 = E2DoctorHistoryScreen
-class E2DoctorHistoryScreen(_E2DoctorHistoryScreen20):
-    skin = premium_results_skin("E2DoctorHistoryScreen")
 
 
 _E2DoctorIPKBrowser20 = E2DoctorIPKBrowser
-class E2DoctorIPKBrowser(_E2DoctorIPKBrowser20):
-    skin = premium_results_skin("E2DoctorIPKBrowser")
 
 
 _E2DoctorSettingsScreen20 = E2DoctorSettingsScreen
-class E2DoctorSettingsScreen(_E2DoctorSettingsScreen20):
-    skin = premium_results_skin("E2DoctorSettingsScreen")
 
 
 _E2DoctorTools20 = E2DoctorTools
@@ -4449,7 +3079,7 @@ class E2DoctorTools(E2DoctorActionMixin, _E2DoctorTools20):
     def __init__(self, session):
         _E2DoctorTools20.__init__(self, session)
         additions = [
-            ("Bezpiecznie oczyść pamięć flash", "safe_flash", "Tylko stare crashlogi, archiwa OPKG i zrzuty pamięci"),
+            ("Bezpiecznie oczyść pamięć flash", "safe_flash", "Tylko crashlogi starsze niż 24 godziny"),
             ("Bezpiecznie odśwież pamięć RAM", "safe_ram", "Zwalnia cache bez kończenia procesów"),
             ("Pokaż diagnostykę nośników", "storage_diag", "Bez formatowania i bez naprawy aktywnego systemu plików"),
         ]
@@ -4528,32 +3158,6 @@ def module_badge(results, key):
     else:
         badge = "DZIAŁA POPRAWNIE"
     return worst, badge
-
-
-def module_subtitle(results, key, default):
-    if key == "repair":
-        count = len(quick_repair_entries(results))
-        if count:
-            return "Dostępne bezpieczne działania: %d — nic nie uruchomi się bez potwierdzenia" % count
-        return "Brak bezpiecznych działań wymaganych przez aktualny skan"
-    selected = module_results(results, key)
-    problematic = [item for item in selected if item.get("status") in (STATUS_ERROR, STATUS_WARN)]
-    if problematic:
-        problematic.sort(key=lambda item: STATUS_RANK.get(item.get("status"), 0), reverse=True)
-        return problematic[0].get("summary", default)
-    return default
-
-
-def dashboard_recommendation(results):
-    if not results:
-        return "GOTOWY: uruchom pełny skan, aby E2 Doctor przygotował zalecenia i bezpieczne działania."
-    problems = [item for item in results if item.get("status") in (STATUS_ERROR, STATUS_WARN)]
-    problems.sort(key=lambda item: STATUS_RANK.get(item.get("status"), 0), reverse=True)
-    if problems:
-        item = problems[0]
-        count = len(quick_repair_entries(results))
-        return "PRIORYTET: %s — %s | Centrum naprawy: %d działań" % (item.get("title", "Problem"), item.get("summary", ""), count)
-    return "SYSTEM W DOBREJ KONDYCJI: nie wykryto błędów ani ostrzeżeń wymagających działania."
 
 
 class E2DoctorDashboard(Screen):
@@ -4756,12 +3360,14 @@ UPDATE_TEMP_IPK = "/tmp/e2doctor-github-update.ipk"
 try:
     PLUGIN_BUILD
 except NameError:
-    PLUGIN_BUILD = "20260711-4"
+    PLUGIN_BUILD = "20260910-2"
 
 
 def _version_parts(value):
-    parts = re.findall(r"\d+", str(value or ""))
-    return tuple(int(part) for part in parts) if parts else (0,)
+    parts = [int(part) for part in re.findall(r"\d+", str(value or ""))]
+    while parts and parts[-1] == 0:
+        parts.pop()
+    return tuple(parts) or (0,)
 
 
 def _remote_is_newer(remote_version, remote_build):
@@ -4773,42 +3379,30 @@ def _remote_is_newer(remote_version, remote_build):
 
 
 def _validate_update_url(value):
-    if not value or urlparse is None:
-        return False
-    try:
-        parsed = urlparse(value)
-        return parsed.scheme == "https" and parsed.hostname in UPDATE_ALLOWED_HOSTS
-    except Exception:
-        return False
+    return runtime.valid_url(value)
 
 
 def fetch_update_manifest(timeout=10):
-    if Request is None or urlopen is None:
-        raise RuntimeError("Ten system nie udostępnia modułu urllib.request.")
-    request = Request(
-        UPDATE_MANIFEST_URL,
-        headers={"User-Agent": "E2Doctor/%s Python3" % PLUGIN_VERSION, "Cache-Control": "no-cache"},
-    )
-    context = ssl.create_default_context()
-    with urlopen(request, timeout=timeout, context=context) as response:
-        raw = response.read(131072)
-    if not raw:
-        raise RuntimeError("Serwer GitHub zwrócił pusty plik aktualizacji.")
-    manifest = json.loads(raw.decode("utf-8", "replace"))
+    with tempfile.TemporaryDirectory(prefix="e2doctor-manifest-") as directory:
+        path = os.path.join(directory, "update.json")
+        code, output, error = run_command([sys.executable, os.path.join(PLUGIN_PATH, "runtime.py"), "download", UPDATE_MANIFEST_URL, path, "131072"], timeout=20)
+        if code:
+            raise RuntimeError(error or output or "Manifest download failed")
+        with open(path, "r", encoding="utf-8") as handle:
+            manifest = json.load(handle)
     if not isinstance(manifest, dict):
-        raise RuntimeError("Nieprawidłowy format pliku update.json.")
-    required = ("version", "build", "download_url", "sha256")
-    missing = [key for key in required if not str(manifest.get(key, "")).strip()]
-    if missing:
-        raise RuntimeError("W update.json brakuje pól: %s" % ", ".join(missing))
-    if not _validate_update_url(manifest.get("download_url")):
-        raise RuntimeError("Adres paczki aktualizacji nie prowadzi do dozwolonej domeny GitHub.")
-    checksum = str(manifest.get("sha256", "")).strip().lower()
-    if not re.match(r"^[0-9a-f]{64}$", checksum):
-        raise RuntimeError("Nieprawidłowa suma SHA-256 w update.json.")
-    minimum_python = int(manifest.get("min_python", 3) or 3)
-    if sys.version_info[0] < minimum_python:
-        raise RuntimeError("Aktualizacja wymaga Python %d lub nowszego." % minimum_python)
+        raise ValueError("Invalid manifest")
+    for field in ("version", "build", "download_url", "sha256"):
+        if not isinstance(manifest.get(field), str) or not manifest[field].strip():
+            raise ValueError("Invalid manifest field: " + field)
+    if not re.match(r"^\d+(?:\.\d+)*(?:-r?\d+)?$", manifest["version"]):
+        raise ValueError("Invalid update version")
+    if not runtime.valid_url(manifest["download_url"]):
+        raise ValueError("Invalid download URL")
+    if not re.match(r"^[0-9a-fA-F]{64}$", manifest["sha256"]):
+        raise ValueError("Invalid SHA-256")
+    if int(manifest.get("min_python", 3)) > sys.version_info[0]:
+        raise ValueError("Unsupported Python version")
     return manifest
 
 
@@ -4818,9 +3412,9 @@ def update_screen_skin_21():
         m, title, body, small = 42, 42, 27, 21
         header_h, footer_y = 145, 625
     else:
-        w, h = 930, 570
+        w, h = 1000, 650
         m, title, body, small = 30, 34, 22, 17
-        header_h, footer_y = 120, 515
+        header_h, footer_y = 145, 595
     content_y = header_h + 18
     content_h = footer_y - content_y - 18
     left_w = int(w * 0.36)
@@ -4874,6 +3468,11 @@ class E2DoctorUpdateScreen(Screen):
 
     def __init__(self, session):
         Screen.__init__(self, session)
+        from .dashboard import Worker
+        self.update_worker = Worker(self)
+        self.temp_dir = tempfile.mkdtemp(prefix="e2doctor-update-")
+        self.temp_ipk = os.path.join(self.temp_dir, "update.ipk")
+        self.onClose.append(lambda: shutil.rmtree(self.temp_dir, ignore_errors=True))
         self.manifest = None
         self.update_available = False
         self.busy = False
@@ -4886,7 +3485,7 @@ class E2DoctorUpdateScreen(Screen):
         self["subtitle"] = Label("Bezpieczne sprawdzanie wersji, weryfikacja SHA-256 i instalacja IPK")
         self["source"] = Label("Źródło: github.com/OliOli2013/E2-Doctor-Plugin")
         self["local_title"] = Label("ZAINSTALOWANA WERSJA")
-        self["local_version"] = Label("%s  •  build %s" % (PLUGIN_VERSION, PLUGIN_BUILD))
+        self["local_version"] = Label(PLUGIN_VERSION)
         self["remote_title"] = Label("WERSJA NA GITHUB")
         self["remote_version"] = Label("sprawdzanie...")
         self["status_title"] = Label("STATUS AKTUALIZACJI")
@@ -4930,46 +3529,25 @@ class E2DoctorUpdateScreen(Screen):
     def check_update(self):
         if self.busy:
             return
+        self.busy = True
         self.manifest = None
         self.update_available = False
-        self["key_green"].setText("Sprawdź")
-        self["remote_version"].setText("sprawdzanie...")
-        self._set_status("Łączenie z GitHub...", "Pobieranie i sprawdzanie pliku update.json.")
-        try:
-            manifest = fetch_update_manifest()
-            self.manifest = manifest
-            version = str(manifest.get("version"))
-            build = str(manifest.get("build"))
-            self["remote_version"].setText("%s  •  build %s" % (version, build))
-            notes = manifest.get("notes") or []
-            if isinstance(notes, str):
-                notes = [notes]
-            note_lines = ["E2 Doctor %s" % version]
-            release_date = str(manifest.get("release_date", "")).strip()
-            if release_date:
-                note_lines.append("Data wydania: %s" % release_date)
-            note_lines.append("")
-            for entry in notes:
-                note_lines.append("• %s" % str(entry))
-            note_lines.extend([
-                "", "Bezpieczeństwo aktualizacji:",
-                "• paczka jest pobierana wyłącznie przez HTTPS z GitHub,",
-                "• przed instalacją sprawdzana jest suma SHA-256,",
-                "• instalacja wymaga potwierdzenia użytkownika,",
-                "• po instalacji proponowany jest restart GUI.",
-            ])
-            self["notes"].setText("\n".join(note_lines))
-            self.update_available = _remote_is_newer(version, build)
-            if self.update_available:
-                self._set_status("DOSTĘPNA NOWA WERSJA")
-                self["key_green"].setText("Pobierz i zainstaluj")
-            else:
-                self._set_status("MASZ NAJNOWSZĄ WERSJĘ")
-                self["key_green"].setText("Sprawdź ponownie")
-        except Exception as error:
-            self["remote_version"].setText("brak danych")
-            self._set_status("BŁĄD POŁĄCZENIA", "Nie udało się sprawdzić aktualizacji.\n\n%s\n\nSprawdź internet, DNS, prawidłową datę systemową oraz dostęp do GitHub." % error)
-            self["key_green"].setText("Spróbuj ponownie")
+        self._set_status(L("Sprawdzanie aktualizacji…", "Checking for updates…"))
+        self.update_worker.start(fetch_update_manifest, self._manifest_finished)
+
+    def _manifest_finished(self, manifest, error):
+        self.busy = False
+        if error:
+            self._set_status(L("BŁĄD POŁĄCZENIA", "CONNECTION ERROR"), str(error))
+            self["remote_version"].setText(L("brak danych", "no data"))
+            self["key_green"].setText(L("Spróbuj ponownie", "Try again"))
+            return
+        self.manifest = manifest
+        self.update_available = _remote_is_newer(manifest["version"], manifest["build"])
+        self["remote_version"].setText(manifest["version"])
+        self["notes"].setText("\n".join(str(x) for x in manifest.get("notes", [])))
+        self._set_status(L("DOSTĘPNA NOWA WERSJA", "NEW VERSION AVAILABLE") if self.update_available else L("MASZ NAJNOWSZĄ WERSJĘ", "YOU HAVE THE LATEST VERSION"))
+        self["key_green"].setText(L("Pobierz i zainstaluj", "Download and install") if self.update_available else L("Sprawdź ponownie", "Check again"))
 
     def green_action(self):
         if self.busy:
@@ -4993,11 +3571,15 @@ class E2DoctorUpdateScreen(Screen):
 
     def _new_console(self, closed_callback):
         if eConsoleAppContainer is None:
-            raise RuntimeError("Ten obraz Enigma2 nie udostępnia eConsoleAppContainer.")
+            raise RuntimeError("eConsoleAppContainer unavailable")
         self.console_output = []
         self.console = eConsoleAppContainer()
-        self.console.dataAvail.append(self._console_data)
-        self.console.appClosed.append(closed_callback)
+        self.console_connections = []
+        for signal, callback in ((self.console.dataAvail, self._console_data), (self.console.appClosed, closed_callback)):
+            if hasattr(signal, "append"):
+                signal.append(callback)
+            else:
+                self.console_connections.append(signal.connect(callback))
         return self.console
 
     def _console_data(self, data):
@@ -5011,33 +3593,39 @@ class E2DoctorUpdateScreen(Screen):
             pass
 
     def start_download(self):
-        try:
-            if os.path.exists(UPDATE_TEMP_IPK):
-                os.unlink(UPDATE_TEMP_IPK)
-        except Exception:
-            pass
         self.busy = True
-        self["key_green"].setText("Pobieranie...")
-        self._set_status("POBIERANIE PACZKI", "Trwa pobieranie aktualizacji z GitHub. Nie wyłączaj dekodera.")
-        try:
-            console = self._new_console(self._download_finished)
-            command = "wget -q -O %s %s" % (shlex.quote(UPDATE_TEMP_IPK), shlex.quote(str(self.manifest.get("download_url"))))
-            if console.execute(command):
-                raise RuntimeError("Nie udało się uruchomić polecenia wget.")
-        except Exception as error:
+        self["key_green"].setText(L("Pobieranie…", "Downloading…"))
+        self._set_status(L("POBIERANIE PACZKI", "DOWNLOADING PACKAGE"))
+        manifest = dict(self.manifest)
+        self.install_manifest = manifest
+        def download():
+            command = [sys.executable, os.path.join(PLUGIN_PATH, "runtime.py"), "download", manifest["download_url"], self.temp_ipk]
+            code, out, err = run_command(command, timeout=60)
+            if code:
+                raise RuntimeError(err or out or "Download failed")
+            runtime.verify_ipk(self.temp_ipk, manifest)
+            return True
+        self.update_worker.start(download, self._download_ready)
+
+    def _download_ready(self, value, error):
+        if error:
             self.busy = False
-            self._set_status("BŁĄD POBIERANIA", str(error))
-            self["key_green"].setText("Spróbuj ponownie")
+            self._set_status(L("AKTUALIZACJA ODRZUCONA", "UPDATE REJECTED"), str(error))
+            self["key_green"].setText(L("Spróbuj ponownie", "Try again"))
+            return
+        # Keep busy while confirmation is open; manifest cannot change underneath it.
+        self.session.openWithCallback(self._install_confirmed, MessageBox,
+            L("Paczka i SHA-256 są poprawne. Zainstalować aktualizację?", "Package and SHA-256 verified. Install the update?"), MessageBox.TYPE_YESNO)
 
     def _download_finished(self, return_code):
         self.busy = False
-        if int(return_code) != 0 or not os.path.isfile(UPDATE_TEMP_IPK):
+        if int(return_code) != 0 or not os.path.isfile(self.temp_ipk):
             output = "".join(self.console_output).strip()
             self._set_status("BŁĄD POBIERANIA", "Nie udało się pobrać paczki.\nKod: %s\n%s" % (return_code, output[-1500:]))
             self["key_green"].setText("Spróbuj ponownie")
             return
         try:
-            with open(UPDATE_TEMP_IPK, "rb") as handle:
+            with open(self.temp_ipk, "rb") as handle:
                 header = handle.read(8)
                 handle.seek(0)
                 digest = hashlib.sha256()
@@ -5054,7 +3642,7 @@ class E2DoctorUpdateScreen(Screen):
                 raise RuntimeError("Suma SHA-256 jest niezgodna.\nOczekiwana: %s\nPobrana: %s" % (expected, actual))
         except Exception as error:
             try:
-                os.unlink(UPDATE_TEMP_IPK)
+                os.unlink(self.temp_ipk)
             except Exception:
                 pass
             self._set_status("AKTUALIZACJA ODRZUCONA", str(error))
@@ -5069,18 +3657,22 @@ class E2DoctorUpdateScreen(Screen):
         )
 
     def _install_confirmed(self, answer):
-        if not answer:
-            self["key_green"].setText("Pobierz i zainstaluj")
-            return
-        self.start_install()
+        self.busy = False
+        if answer:
+            self.start_install()
+        else:
+            self["key_green"].setText(L("Pobierz i zainstaluj", "Download and install"))
 
     def start_install(self):
         self.busy = True
         self["key_green"].setText("Instalowanie...")
         self._set_status("INSTALOWANIE AKTUALIZACJI", "OPKG instaluje zweryfikowaną paczkę. Nie wyłączaj dekodera.")
         try:
+            runtime.verify_ipk(self.temp_ipk, self.install_manifest)
+            if process_running("opkg") or process_running("opkg-cl"):
+                raise RuntimeError(L("OPKG jest zajęty.", "OPKG is busy."))
             console = self._new_console(self._install_finished)
-            command = "opkg install --force-reinstall %s" % shlex.quote(UPDATE_TEMP_IPK)
+            command = "opkg install --force-reinstall %s" % shlex.quote(self.temp_ipk)
             if console.execute(command):
                 raise RuntimeError("Nie udało się uruchomić OPKG.")
         except Exception as error:
@@ -5092,13 +3684,30 @@ class E2DoctorUpdateScreen(Screen):
         self.busy = False
         output = "".join(self.console_output).strip()
         try:
-            os.unlink(UPDATE_TEMP_IPK)
+            os.unlink(self.temp_ipk)
         except Exception:
             pass
+        if int(return_code) == 0:
+            try:
+                with open(os.path.join(PLUGIN_PATH, "__init__.py"), "r", encoding="utf-8") as source:
+                    installed_tree = ast.parse(source.read())
+                installed_values = {}
+                for node in installed_tree.body:
+                    if isinstance(node, ast.Assign):
+                        for target in node.targets:
+                            if isinstance(target, ast.Name) and target.id in ("PLUGIN_VERSION", "PLUGIN_BUILD"):
+                                installed_values[target.id] = ast.literal_eval(node.value)
+                if installed_values.get("PLUGIN_VERSION") != self.install_manifest["version"] or installed_values.get("PLUGIN_BUILD") != self.install_manifest["build"]:
+                    raise ValueError("Installed files do not match the requested version/build")
+            except Exception as error:
+                return_code = 1
+                output += "\n" + str(error)
         if int(return_code) != 0:
             self._set_status("BŁĄD INSTALACJI", "OPKG zakończył pracę kodem %s.\n\n%s" % (return_code, output[-2500:]))
             self["key_green"].setText("Sprawdź ponownie")
             return
+        self.update_available = False
+        self.manifest = None
         self._set_status("AKTUALIZACJA ZAINSTALOWANA", "Nowa wersja E2 Doctor została zainstalowana poprawnie. Wykonaj restart GUI, aby wczytać nowe pliki.")
         self["key_green"].setText("Gotowe")
         self.session.openWithCallback(
@@ -5124,12 +3733,6 @@ if not any(entry[0] == "update" for entry in DASHBOARD_MODULES):
     DASHBOARD_MODULES.insert(insert_at, ("update", "UPD", "Aktualizacja z GitHub", "Sprawdź, pobierz i bezpiecznie zainstaluj najnowszą wersję"))
 
 _E2D_MODULE_BADGE_BEFORE_UPDATE = module_badge
-
-
-def module_badge(results, key):
-    if key == "update":
-        return STATUS_INFO, "SPRAWDŹ"
-    return _E2D_MODULE_BADGE_BEFORE_UPDATE(results, key)
 
 
 _E2D_DASHBOARD_INIT_BEFORE_UPDATE = E2DoctorDashboard.__init__
@@ -5161,7 +3764,7 @@ E2DoctorDashboard.open_update = _e2d_dashboard_open_update
 E2DoctorDashboard.open_selected = _e2d_dashboard_open_selected_with_update
 
 # -----------------------------------------------------------------------------
-# E2 Doctor 2.3 - dashboard premium cards
+# E2 Doctor 2.4.1 - dashboard premium cards
 # -----------------------------------------------------------------------------
 try:
     from Components.MultiContent import MultiContentEntryPixmapAlphaBlend
@@ -5325,52 +3928,11 @@ def dashboard_skin_22():
     }
 
 
-class E2DoctorDashboardList(MenuList):
-    def __init__(self, entries=None):
-        MenuList.__init__(self, entries or [], enableWrapAround=True, content=eListboxPythonMultiContent)
-        self.l.setFont(0, gFont('Regular', 18 if E2D_FHD else 14))
-        self.l.setFont(1, gFont('Regular', E2D_FONT_TITLE))
-        self.l.setFont(2, gFont('Regular', E2D_FONT_SMALL))
-        self.l.setFont(3, gFont('Regular', E2D_FONT_TINY))
-        self.l.setFont(4, gFont('Regular', 20 if E2D_FHD else 15))
-        self.l.setItemHeight(92 if E2D_FHD else 72)
-        self.l.setBuildFunc(self.build_entry)
-
-    def build_entry(self, key, code, title, subtitle, status, badge):
-        status_color = STATUS_COLORS.get(status, 0x008A9AA5)
-        item_h = 92 if E2D_FHD else 72
-        content_w = E2D_LIST_W
-        icon_size = 54 if E2D_FHD else 42
-        icon_box = 84 if E2D_FHD else 66
-        badge_w = 180 if E2D_FHD else 142
-        title_x = icon_box + 24
-        text_w = content_w - title_x - badge_w - 26
-        helper = MODULE_HINTS_22.get(key, '')
-        icon = MODULE_ICONS_22.get(key)
-        entries = [
-            None,
-            MultiContentEntryText(pos=(0, 4), size=(content_w, item_h - 8), font=2, text='', backcolor=0x00122029, backcolor_sel=0x00223E4D),
-            MultiContentEntryText(pos=(0, 4), size=(6, item_h - 8), font=2, text='', backcolor=status_color, backcolor_sel=status_color),
-            MultiContentEntryText(pos=(18, 14 if E2D_FHD else 11), size=(icon_box, item_h - (28 if E2D_FHD else 22)), font=4, flags=RT_HALIGN_CENTER | RT_VALIGN_CENTER, text='', backcolor=0x00193342, backcolor_sel=0x0028495A),
-            MultiContentEntryText(pos=(title_x, 10 if E2D_FHD else 8), size=(text_w, 22), font=0, flags=RT_HALIGN_LEFT | RT_VALIGN_CENTER, text=code + '  •  MODUŁ', color=0x0078DCE4, color_sel=0x0096ECF2, backcolor_sel=0x00223E4D),
-            MultiContentEntryText(pos=(title_x, 28 if E2D_FHD else 21), size=(text_w, 34), font=1, flags=RT_HALIGN_LEFT | RT_VALIGN_CENTER, text=title, color=0x00FFFFFF, color_sel=0x00FFFFFF, backcolor_sel=0x00223E4D),
-            MultiContentEntryText(pos=(title_x, 58 if E2D_FHD else 46), size=(text_w, 22), font=3, flags=RT_HALIGN_LEFT | RT_VALIGN_CENTER, text=helper, color=0x0089A4B0, color_sel=0x00B9D3DE, backcolor_sel=0x00223E4D),
-            MultiContentEntryText(pos=(content_w - badge_w - 18, 18 if E2D_FHD else 12), size=(badge_w, item_h - (36 if E2D_FHD else 24)), font=4, flags=RT_HALIGN_CENTER | RT_VALIGN_CENTER, text='', backcolor=0x00142B35, backcolor_sel=0x00193442),
-            MultiContentEntryText(pos=(content_w - badge_w - 18, 26 if E2D_FHD else 18), size=(badge_w, 24), font=2, flags=RT_HALIGN_CENTER | RT_VALIGN_CENTER, text=badge, color=status_color, color_sel=status_color, backcolor_sel=0x00193442),
-            MultiContentEntryText(pos=(content_w - badge_w - 18, 50 if E2D_FHD else 39), size=(badge_w, 18), font=3, flags=RT_HALIGN_CENTER | RT_VALIGN_CENTER, text=subtitle, color=0x00C0CCD4, color_sel=0x00FFFFFF, backcolor_sel=0x00193442),
-        ]
-        if icon is not None and MultiContentEntryPixmapAlphaBlend is not None:
-            entries.append(MultiContentEntryPixmapAlphaBlend(pos=(18 + int((icon_box - icon_size) / 2), 14 if E2D_FHD else 11), size=(icon_size, icon_size), png=icon))
-        else:
-            entries.append(MultiContentEntryText(pos=(18, 14 if E2D_FHD else 11), size=(icon_box, item_h - (28 if E2D_FHD else 22)), font=4, flags=RT_HALIGN_CENTER | RT_VALIGN_CENTER, text=code, color=0x00FFFFFF, color_sel=0x00FFFFFF, backcolor_sel=0x0028495A))
-        return entries
-
-
 # aktywacja stylu 2.2 bez naruszania logiki ekranu
 E2DoctorDashboard.skin = dashboard_skin_22()
 
 # -----------------------------------------------------------------------------
-# E2 Doctor 2.3 - język systemu (PL/EN) i poprawione skalowanie ikon
+# E2 Doctor 2.4.1 - język systemu (PL/EN) i poprawione skalowanie ikon
 # -----------------------------------------------------------------------------
 DEFAULT_SETTINGS["language"] = "auto"
 
@@ -5696,7 +4258,7 @@ def make_report(results):
         "System: %s %s" % (distro, version), "Build: %s" % (build or "unknown"),
         "Python: %s" % sys.version.replace("\n", " "),
         "Architecture: %s" % (os.uname().machine if hasattr(os, "uname") else "unknown"), "",
-        "NOTICE: The report does not contain passwords, OSCam server lines or the complete settings file.", "",
+        "NOTICE: OSCam configuration and full settings are omitted. Recognised secrets are masked; review the report before sharing.", "",
     ]
     for item in results:
         shown = translated_item(item)
@@ -5707,23 +4269,22 @@ def make_report(results):
     code, uptime, _ = run_command("uptime", timeout=3)
     if code == 0:
         lines.extend(["=" * 72, "System uptime", uptime, ""])
-    with open(path, "w", encoding="utf-8") as handle:
-        handle.write("\n".join(lines))
+    write_text_atomic(path, runtime.redact("\n".join(lines)))
     return path
 
 
 _ACTION_EN_23 = {
-    "safe_flash_cleanup": ("Safely clean flash", "Remove only old crashlogs, OPKG archives and memory dumps. Enigma2 settings and data remain unchanged.", "Clean flash"),
+    "safe_flash_cleanup": ("Safely clean flash", "Remove only crashlogs older than 24 hours. Enigma2 settings and data remain unchanged.", "Clean flash"),
     "find_large_files": ("Show largest files", "Find the files using the most space without deleting them.", "Large files"),
     "safe_ram_refresh": ("Safely refresh RAM", "Write pending data and release only kernel cache. Processes and configuration are not stopped.", "Refresh RAM"),
     "show_processes": ("Show RAM-consuming processes", "Check which processes use the most memory. Nothing will be terminated.", "RAM processes"),
     "repair_bouquet_refs": ("Repair bouquet references", "Back up the index files and remove only entries pointing to missing bouquets.", "Repair bouquets"),
     "reload_bouquets": ("Reload channel list", "Refresh channel lists without deleting bouquets, tuner settings or other configuration.", "Reload list"),
-    "remove_opkg_lock": ("Remove inactive OPKG lock", "Remove the lock only when the package manager is not running.", "Remove lock"),
+    "remove_opkg_lock": ("Check OPKG lock", "Remove the lock only when the package manager is not running.", "Remove lock"),
     "restart_oscam": ("Restart OSCam", "Find the correct system script and safely restart the service.", "Restart OSCam"),
     "sync_time": ("Synchronise date and time", "Start the time-synchronisation mechanism available in the image.", "Synchronise time"),
     "network_test": ("Run extended network test", "Check the interface, IP address, gateway, DNS and HTTPS without changing configuration.", "Network test"),
-    "disable_suspect_plugin": ("Temporarily disable suspected plug-in", "Rename the plug-in directory without deleting it. The change can be reverted.", "Disable plug-in"),
+    "disable_suspect_plugin": ("Temporarily disable suspected plug-in", "Move the plug-in directory outside the plug-in search path without deleting it. The change can be reverted.", "Disable plug-in"),
     "cleanup_crashlogs": ("Remove old crashlogs", "Keep the three latest logs required for further diagnostics.", "Remove old logs"),
     "emergency_report": ("Create emergency report", "Save a report that can be sent to a support person.", "Emergency report"),
     "storage_diagnostic": ("Show storage diagnostics", "Display mounts, free space and recent kernel messages without repairing the filesystem.", "Diagnostics"),
@@ -5768,8 +4329,8 @@ def _request_action_23(self, action_name, item=None, on_done=None):
             self.session.open(E2DoctorTextScreen, L("Bezpieczne czyszczenie flash", "Safe flash cleanup"), preview, L("Brak plików do usunięcia", "No files to remove"))
             return
         text = L(
-            "E2 Doctor znalazł %d bezpiecznych plików o łącznym rozmiarze %s.\n\nUsunięte zostaną wyłącznie stare crashlogi, archiwa OPKG i zrzuty pamięci. Ustawienia, listy kanałów, wtyczki, EPG i picony pozostaną bez zmian.\n\nKontynuować?",
-            "E2 Doctor found %d safe files with a total size of %s.\n\nOnly old crashlogs, OPKG archives and memory dumps will be removed. Settings, channel lists, plug-ins, EPG and picons will remain unchanged.\n\nContinue?"
+            "E2 Doctor znalazł %d bezpiecznych plików o łącznym rozmiarze %s.\n\nUsunięte zostaną wyłącznie crashlogi starsze niż 24 godziny. Ustawienia, listy kanałów, wtyczki, EPG i picony pozostaną bez zmian.\n\nKontynuować?",
+            "E2 Doctor found %d safe files with a total size of %s.\n\nOnly crashlogs older than 24 hours will be removed. Settings, channel lists, plug-ins, EPG and picons will remain unchanged.\n\nContinue?"
         ) % (len(entries), format_bytes(total))
         self.session.openWithCallback(self._confirmed_action, MessageBox, text, MessageBox.TYPE_YESNO)
         return
@@ -5779,7 +4340,7 @@ def _request_action_23(self, action_name, item=None, on_done=None):
         "remove_opkg_lock": L("Usunąć nieaktywną blokadę OPKG?", "Remove the inactive OPKG lock?"),
         "restart_oscam": L("Uruchomić ponownie OSCam?", "Restart OSCam?"),
         "sync_time": L("Spróbować zsynchronizować datę i czas systemowy?", "Try to synchronise the system date and time?"),
-        "disable_suspect_plugin": L("Tymczasowo wyłączyć podejrzaną wtyczkę %s?\n\nKatalog zostanie jedynie przemianowany. Operację można cofnąć w Narzędziach E2 Doctor.", "Temporarily disable the suspected plug-in %s?\n\nIts directory will only be renamed. The operation can be reverted in E2 Doctor Tools.") % (item or {}).get("context", {}).get("plugin", ""),
+        "disable_suspect_plugin": L("Tymczasowo wyłączyć podejrzaną wtyczkę %s?\n\nKatalog zostanie przeniesiony poza katalogi skanowane przez Enigma2. Operację można cofnąć w Narzędziach E2 Doctor.", "Temporarily disable the suspected plug-in %s?\n\nIts directory will only be renamed. The operation can be reverted in E2 Doctor Tools.") % (item or {}).get("context", {}).get("plugin", ""),
         "cleanup_crashlogs": L("Usunąć stare crashlogi i pozostawić trzy najnowsze?", "Remove old crashlogs and keep the three newest?"),
         "reload_bouquets": L("Przeładować listę kanałów bez usuwania ustawień i bukietów?", "Reload the channel list without removing settings or bouquets?"),
         "restart_gui": L("Uruchomić ponownie GUI Enigma2?\n\nPrzed wykonaniem zakończ trwające nagrania i ważne operacje.", "Restart the Enigma2 GUI?\n\nFinish active recordings and important operations first."),
@@ -5797,7 +4358,7 @@ _old_open_action_text_23 = E2DoctorActionMixin._open_action_text
 def _show_action_message_23(self, message, changed=False, error=False):
     return _old_show_action_message_23(self, translate_text(message), changed, error)
 
-def _open_action_text_23(self, title, text, status="E2 Doctor 2.3"):
+def _open_action_text_23(self, title, text, status="E2 Doctor 2.4.1"):
     return _old_open_action_text_23(self, translate_text(title), translate_text(text), translate_text(status))
 
 E2DoctorActionMixin._show_action_message = _show_action_message_23
@@ -5944,7 +4505,7 @@ class E2DoctorDashboardList(MenuList):
     def __init__(self, entries=None):
         MenuList.__init__(self, entries or [], enableWrapAround=True, content=eListboxPythonMultiContent)
         self.l.setFont(0, gFont("Regular", 18 if E2D_FHD else 14))
-        self.l.setFont(1, gFont("Regular", E2D_FONT_TITLE))
+        self.l.setFont(1, gFont("Regular", 29 if E2D_FHD else 24))
         self.l.setFont(2, gFont("Regular", E2D_FONT_SMALL))
         self.l.setFont(3, gFont("Regular", E2D_FONT_TINY))
         self.l.setFont(4, gFont("Regular", 20 if E2D_FHD else 15))
@@ -5972,12 +4533,12 @@ class E2DoctorDashboardList(MenuList):
             MultiContentEntryText(pos=(0, 4), size=(content_w, item_h - 8), font=2, text="", backcolor=0x00122029, backcolor_sel=0x00223E4D),
             MultiContentEntryText(pos=(0, 4), size=(6, item_h - 8), font=2, text="", backcolor=status_color, backcolor_sel=status_color),
             MultiContentEntryText(pos=(18, 14 if E2D_FHD else 11), size=(icon_box, item_h - (28 if E2D_FHD else 22)), font=4, flags=RT_HALIGN_CENTER | RT_VALIGN_CENTER, text="", backcolor=0x00193342, backcolor_sel=0x0028495A),
-            MultiContentEntryText(pos=(title_x, 10 if E2D_FHD else 8), size=(text_w, 22), font=0, flags=RT_HALIGN_LEFT | RT_VALIGN_CENTER, text=code + L("  •  MODUŁ", "  •  MODULE"), color=0x0078DCE4, color_sel=0x0096ECF2, backcolor_sel=0x00223E4D),
-            MultiContentEntryText(pos=(title_x, 28 if E2D_FHD else 21), size=(text_w, 34), font=1, flags=RT_HALIGN_LEFT | RT_VALIGN_CENTER, text=title, color=0x00FFFFFF, color_sel=0x00FFFFFF, backcolor_sel=0x00223E4D),
-            MultiContentEntryText(pos=(title_x, 58 if E2D_FHD else 46), size=(text_w, 22), font=3, flags=RT_HALIGN_LEFT | RT_VALIGN_CENTER, text=subtitle, color=0x009BB2BD, color_sel=0x00D8E8EE, backcolor_sel=0x00223E4D),
+            MultiContentEntryText(pos=(title_x, 6 if E2D_FHD else 4), size=(text_w, 22 if E2D_FHD else 18), font=0, flags=RT_HALIGN_LEFT | RT_VALIGN_CENTER, text=code + L("  •  MODUŁ", "  •  MODULE"), color=0x0078DCE4, color_sel=0x0096ECF2, backcolor_sel=0x00223E4D),
+            MultiContentEntryText(pos=(title_x, 28 if E2D_FHD else 23), size=(text_w, 34 if E2D_FHD else 28), font=1, flags=RT_HALIGN_LEFT | RT_VALIGN_CENTER, text=title, color=0x00FFFFFF, color_sel=0x00FFFFFF, backcolor_sel=0x00223E4D),
+            MultiContentEntryText(pos=(title_x, 64 if E2D_FHD else 52), size=(text_w, 22 if E2D_FHD else 18), font=3, flags=RT_HALIGN_LEFT | RT_VALIGN_CENTER, text=subtitle, color=0x009BB2BD, color_sel=0x00D8E8EE, backcolor_sel=0x00223E4D),
             MultiContentEntryText(pos=(content_w - badge_w - 18, 18 if E2D_FHD else 12), size=(badge_w, item_h - (36 if E2D_FHD else 24)), font=4, flags=RT_HALIGN_CENTER | RT_VALIGN_CENTER, text="", backcolor=0x00142B35, backcolor_sel=0x00193442),
-            MultiContentEntryText(pos=(content_w - badge_w - 18, 26 if E2D_FHD else 18), size=(badge_w, 24), font=2, flags=RT_HALIGN_CENTER | RT_VALIGN_CENTER, text=badge, color=status_color, color_sel=status_color, backcolor_sel=0x00193442),
-            MultiContentEntryText(pos=(content_w - badge_w - 18, 50 if E2D_FHD else 39), size=(badge_w, 18), font=3, flags=RT_HALIGN_CENTER | RT_VALIGN_CENTER, text=short_note, color=0x00C0CCD4, color_sel=0x00FFFFFF, backcolor_sel=0x00193442),
+            MultiContentEntryText(pos=(content_w - badge_w - 18, 26 if E2D_FHD else 14), size=(badge_w, 24), font=2, flags=RT_HALIGN_CENTER | RT_VALIGN_CENTER, text=badge, color=status_color, color_sel=status_color, backcolor_sel=0x00193442),
+            MultiContentEntryText(pos=(content_w - badge_w - 18, 52 if E2D_FHD else 40), size=(badge_w, 18), font=3, flags=RT_HALIGN_CENTER | RT_VALIGN_CENTER, text=short_note, color=0x00C0CCD4, color_sel=0x00FFFFFF, backcolor_sel=0x00193442),
         ]
         if icon is not None and MultiContentEntryPixmapAlphaBlend is not None:
             entries.append(MultiContentEntryPixmapAlphaBlend(pos=(18 + int((icon_box - icon_size) / 2), 14 if E2D_FHD else 11), size=(icon_size, icon_size), png=icon))
@@ -6138,7 +4699,7 @@ E2DoctorDashboard.settings_closed = _dashboard_settings_closed_23
 
 class E2DoctorTextScreen(Screen):
     skin = premium_text_skin("E2DoctorTextScreen")
-    def __init__(self, session, title, text, status="E2 Doctor 2.3"):
+    def __init__(self, session, title, text, status="E2 Doctor 2.4.1"):
         Screen.__init__(self, session)
         self["header_bg"] = Label("")
         self["accent"] = Label("")
@@ -6514,9 +5075,19 @@ class E2DoctorIPKBrowser(Screen):
             "cancel": self.close, "red": self.close, "blue": self.close,
             "ok": self.analyze_selected, "green": self.analyze_selected, "yellow": self.refresh,
         }, -1)
-        self.refresh()
+        from .dashboard import Worker
+        self.worker = Worker(self)
+        self.onShown.append(self.refresh)
     def refresh(self):
-        self.paths = find_ipk_files()
+        if self.worker.busy:
+            return
+        self["status"].setText(L("Wyszukiwanie paczek IPK…", "Searching for IPK packages…"))
+        self.worker.start(find_ipk_files, self._paths_ready)
+    def _paths_ready(self, paths, error):
+        if error:
+            self["status"].setText(error)
+            return
+        self.paths = paths
         rows = []
         for path in self.paths:
             try:
@@ -6529,14 +5100,20 @@ class E2DoctorIPKBrowser(Screen):
         self["list"].setList(rows)
         self["status"].setText(L("Znalezione paczki: %d | E2 Doctor nie instaluje wskazanego pliku", "Packages found: %d | E2 Doctor does not install the selected file") % len(self.paths))
     def analyze_selected(self):
+        if self.worker.busy:
+            return
         index = self["list"].getSelectedIndex()
         if index < 0 or index >= len(self.paths):
             return
         path = self.paths[index]
-        try:
-            self.session.open(E2DoctorTextScreen, L("Analiza — %s", "Analysis — %s") % os.path.basename(path), analyze_ipk(path), "E2 Safe Installer")
-        except Exception as error:
-            self.session.open(MessageBox, L("Nie udało się przeanalizować paczki:\n%s", "The package could not be analysed:\n%s") % error, MessageBox.TYPE_ERROR)
+        self["status"].setText(L("Trwa analiza paczki…", "Analysing package…"))
+        def finished(report, error):
+            self["status"].setText(L("Analiza zakończona", "Analysis complete"))
+            if error:
+                self.session.open(MessageBox, error, MessageBox.TYPE_ERROR)
+            else:
+                self.session.open(E2DoctorTextScreen, os.path.basename(path), report, "E2 Safe Installer")
+        self.worker.start(lambda: analyze_ipk(path), finished)
 
 
 # Localise the existing tools screen while preserving all tested action logic.
@@ -6562,7 +5139,7 @@ def _update_init_23(self, session):
     _old_update_init_23(self, session)
     self["title"].setText(L("Aktualizacja E2 Doctor z GitHub", "Update E2 Doctor from GitHub"))
     self["subtitle"].setText(L("Bezpieczne sprawdzanie wersji, weryfikacja SHA-256 i instalacja IPK", "Safe version check, SHA-256 verification and IPK installation"))
-    self["source"].setText(L("Źródło: github.com/OliOli2013/E2-Doctor-Plugin", "Source: github.com/OliOli2013/E2-Doctor-Plugin"))
+    self["source"].setText("github.com/OliOli2013/E2-Doctor-Plugin  |  build " + PLUGIN_BUILD)
     self["local_title"].setText(L("ZAINSTALOWANA WERSJA", "INSTALLED VERSION"))
     self["remote_title"].setText(L("WERSJA NA GITHUB", "GITHUB VERSION"))
     self["status_title"].setText(L("STATUS AKTUALIZACJI", "UPDATE STATUS"))
@@ -6600,14 +5177,14 @@ def Plugins(**kwargs):
 # Additional English phrases used by the safe-tools screen and updater.
 _EXACT_EN.update({
     "Bezpiecznie oczyść pamięć flash": "Safely clean flash",
-    "Tylko stare crashlogi, archiwa OPKG i zrzuty pamięci": "Only old crashlogs, OPKG archives and memory dumps",
+    "Tylko crashlogi starsze niż 24 godziny": "Only crashlogs older than 24 hours",
     "Bezpiecznie odśwież pamięć RAM": "Safely refresh RAM",
     "Zwalnia cache bez kończenia procesów": "Releases cache without terminating processes",
     "Pokaż diagnostykę nośników": "Show storage diagnostics",
     "Bez formatowania i bez naprawy aktywnego systemu plików": "No formatting and no repair of an active filesystem",
     "Przeładuj listę kanałów": "Reload channel list",
     "Bez usuwania list i ustawień tunera": "Without removing lists or tuner settings",
-    "Usuń nieaktywną blokadę OPKG": "Remove inactive OPKG lock",
+    "Sprawdź blokadę OPKG": "Check OPKG lock",
     "Tylko gdy OPKG nie jest uruchomiony": "Only when OPKG is not running",
     "Usuń stare crashlogi": "Remove old crashlogs",
     "Pozostawia 3 najnowsze pliki": "Keeps the three newest files",
@@ -6665,7 +5242,7 @@ def _update_init_guarded_23(self, session):
     _old_update_init_guarded_23(self, session)
     self["title"].setText(L("Aktualizacja E2 Doctor z GitHub", "Update E2 Doctor from GitHub"))
     self["subtitle"].setText(L("Bezpieczne sprawdzanie wersji, weryfikacja SHA-256 i instalacja IPK", "Safe version check, SHA-256 verification and IPK installation"))
-    self["source"].setText(L("Źródło: github.com/OliOli2013/E2-Doctor-Plugin", "Source: github.com/OliOli2013/E2-Doctor-Plugin"))
+    self["source"].setText("github.com/OliOli2013/E2-Doctor-Plugin  |  build " + PLUGIN_BUILD)
     self["local_title"].setText(L("ZAINSTALOWANA WERSJA", "INSTALLED VERSION"))
     self["remote_title"].setText(L("WERSJA NA GITHUB", "GITHUB VERSION"))
     self["status_title"].setText(L("STATUS AKTUALIZACJI", "UPDATE STATUS"))
@@ -6729,3 +5306,8 @@ def fetch_update_manifest(timeout=10):
         manifest = dict(manifest)
         manifest["notes"] = manifest.get("notes_en")
     return manifest
+
+# Classic 2.3 appearance with the corrected asynchronous controller.
+from .classic import E2DoctorDashboard
+from .jobs import install as _install_jobs
+_install_jobs()

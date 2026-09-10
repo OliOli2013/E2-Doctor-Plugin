@@ -1,7 +1,9 @@
 #!/bin/sh
-chmod 755 /usr/lib/enigma2/python/Plugins/Extensions/E2Doctor/plugin.py 2>/dev/null || true
-chmod 755 /usr/bin/e2doctor-report 2>/dev/null || true
-chmod 644 /usr/lib/enigma2/python/Plugins/Extensions/E2Doctor/logo_hd.png 2>/dev/null || true
-chmod 644 /usr/lib/enigma2/python/Plugins/Extensions/E2Doctor/logo_fhd.png 2>/dev/null || true
-mkdir -p /etc/enigma2/e2doctor/backups 2>/dev/null || true
+set -eu
+if [ -n "${D:-}" ]; then
+    exit 0
+fi
+mkdir -p /etc/enigma2/e2doctor/backups
+chmod 700 /etc/enigma2/e2doctor /etc/enigma2/e2doctor/backups
+# No GUI restart and no configuration overwrite during package installation.
 exit 0

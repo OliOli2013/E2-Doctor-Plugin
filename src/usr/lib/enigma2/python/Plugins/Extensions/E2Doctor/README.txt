@@ -1,48 +1,46 @@
-E2 Doctor 2.1 dla Enigma2 Python 3
+# E2 Doctor 2.4.1
 
-E2 Doctor jest centrum diagnostyki, objaśniania problemów i bezpiecznej naprawy
-dekoderów Enigma2. Wersja 2.1 rozwija działający rdzeń 2.0 o bardziej atrakcyjny
-panel graficzny oraz kontekstowe Centrum szybkiej naprawy.
+Centrum diagnostyki i narzędzi Enigma2. Python 3, pakiet OPKG/IPK. Autor: Paweł Pawełek.
 
-Najważniejsze funkcje:
-- pełna diagnostyka systemu, flash, RAM, obciążenia, sieci i czasu,
-- kontrola list kanałów, głowic, sygnału, nośników, OPKG, OSCam, EPG i piconów,
-- analiza crashlogów z próbą wskazania pliku, linii i podejrzanej wtyczki,
-- wynik kondycji tunera w skali 0-100,
-- historia skanów i porównywanie zmian,
-- Centrum szybkiej naprawy dopasowujące działania do wykrytych problemów,
-- naprawa brakujących odwołań do bukietów z kopią bezpieczeństwa,
-- bezpieczne czyszczenie flash bez usuwania ustawień, list, wtyczek, EPG i piconów,
-- bezpieczne odświeżenie cache RAM bez kończenia procesów,
-- restart OSCam, synchronizacja czasu i usuwanie nieaktywnej blokady OPKG,
-- rozszerzone testy sieci i diagnostyka nośników,
-- tymczasowe wyłączenie podejrzanej wtyczki z możliwością cofnięcia,
-- E2 Safe Installer do analizy paczek IPK bez ich instalowania,
-- raport techniczny z GUI i raport awaryjny poleceniem e2doctor-report,
-- monitor krytycznych problemów działający w tle.
+Przywrócony wygląd wersji 2.3: duże logo, ocena kondycji tunera, kolorowe liczniki i lista modułów z ikonami, PL/EN. Diagnostyka i pobieranie aktualizacji działają poza wątkiem GUI. Szczegóły zmian, testów i ograniczeń: [audyt funkcji 2.4.0](docs/AUDYT-2.4.0-PL.md) oraz [zmiany 2.4.1](docs/ZMIANY-2.4.1-PL.md).
 
-Sterowanie na ekranie rozwiązania:
-- czerwony: powrót,
-- zielony: główne bezpieczne działanie,
-- żółty: dane techniczne,
-- niebieski: lista wszystkich działań dla danego problemu,
-- INFO lub MENU: zapis instrukcji do pliku.
+## Instalacja
 
-Bezpieczeństwo:
-E2 Doctor nie przywraca ustawień fabrycznych, nie formatuje nośników, nie usuwa
-list kanałów i nie zmienia automatycznie konfiguracji głowic ani sieci. Każda
-operacja ingerująca w system wymaga potwierdzenia. Naprawy obsługujące rollback
-tworzą kopię lub punkt cofania.
+Pobierz `releases/enigma2-plugin-extensions-e2doctor_2.4.1_all.ipk`, skopiuj do `/tmp`, a następnie:
 
-Autor: by Paweł Pawełek
-Kontakt: aio-iptv@wp.pl
+```sh
+opkg install /tmp/enigma2-plugin-extensions-e2doctor_2.4.1_all.ipk
+```
 
-Aktualizacja z GitHub:
-- wybierz moduł „Aktualizacja z GitHub” w panelu głównym lub naciśnij klawisz 0,
-- E2 Doctor pobierze plik update.json z oficjalnego repozytorium,
-- dostępna paczka zostanie pobrana przez HTTPS i sprawdzona sumą SHA-256,
-- instalacja uruchomi się dopiero po potwierdzeniu użytkownika,
-- po zakończeniu można od razu wykonać restart GUI.
+Po poprawnej instalacji wykonaj restart GUI z menu tunera. Ustawienia i historia są w `/etc/enigma2/e2doctor`; paczka ich nie zastępuje. Jeżeli OPKG zgłosi brak zależności, sprawdź feedy właściwe dla swojego obrazu. Nie używaj `--force-depends`.
 
-Repozytorium aktualizacji:
-https://github.com/OliOli2013/E2-Doctor-Plugin
+Istniejący aktualizator 2.3 może pobrać wydanie po publikacji nowego `update.json` oraz IPK pod podanym w nim adresem. Dla tej pierwszej aktualizacji można też użyć instalacji ręcznej.
+
+## Publikacja plików na GitHubie
+
+1. Wgraj zawartość paczki do katalogu głównego repozytorium, zachowując `src/`, `packaging/`, `scripts/`, `tests/`, `docs/` i `releases/`.
+2. Nie twórz dodatkowego katalogu nadrzędnego w repozytorium. Wgraj cały katalog źródeł — `plugin.py` korzysta z nowych modułów.
+3. Zatwierdź IPK i `update.json` w jednym commicie. Jeżeli publikujesz oddzielnie, najpierw IPK, a manifest na końcu.
+4. Nie zmieniaj nazwy IPK bez zmiany `download_url` i nie podmieniaj bajtów IPK bez przeliczenia `sha256`.
+5. Starsze pliki w `releases/` mogą pozostać. Nowy manifest wskazuje tylko wersję 2.4.1.
+
+## Pilot
+
+Czerwony: skan. Zielony/OK: otwórz wynik/działanie. Żółty: raport. Niebieski/EXIT: wyjście. Góra/dół: wybór modułu. MENU: ustawienia. 0: aktualizacja.
+
+## Budowanie i testy
+
+Na komputerze z Pythonem 3.12+:
+
+```sh
+sh build_ipk.sh
+python3 -m unittest discover -s tests -v
+```
+
+Budowa aktualizuje manifest i sumy kontrolne. Raport awaryjny na tunerze: `e2doctor-report`.
+
+Przed szeroką publikacją sprawdź IPK na jednym odbiorniku. Testy lokalne używają atrap API Enigma2; nie zastępują testu obrazu, pilota, głowic i usług. Python 2 oraz DreamOS/DEB nie są obsługiwane.
+
+## English
+
+E2 Doctor 2.4.1 restores the original 2.3 dashboard while retaining background scans, update validation, safer cleanup and other 2.4.0 fixes. Intended for Python 3 Enigma2 images using OPKG. Local tests passed; physical receiver validation is still required. Install the IPK, then restart the GUI. Publish the complete source tree and matching IPK/manifest together.

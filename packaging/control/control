@@ -1,11 +1,11 @@
 Package: enigma2-plugin-extensions-e2doctor
-Version: 2.1
+Version: 2.4.1
 Architecture: all
 Maintainer: Paweł Pawełek
-Depends: python3-core
+Depends: python3-core, python3-json, python3-compression, python3-netclient, python3-threading
 Section: extra
 Priority: optional
-Description: E2 Doctor 2.3 - centrum diagnostyki i bezpiecznej naprawy Enigma2 Python 3
+Description: E2 Doctor 2.4.1 - centrum diagnostyki i bezpiecznej naprawy Enigma2 Python 3
  Dwujęzyczny panel premium PL/EN, centrum szybkiej naprawy, historia skanów i analiza crashlogów,
  diagnostyka sieci, pamięci, głowic, nośników, OPKG, OSCam, EPG i piconów.
  Zawiera naprawy kontekstowe, bezpieczne czyszczenie RAM i flash, E2 Safe Installer,
